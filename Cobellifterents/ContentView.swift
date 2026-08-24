@@ -96,6 +96,9 @@ struct ContentView: View {
 struct WorkoutLoggingView: View {
     @Bindable var session: WorkoutSession
     let onComplete: () -> Void
+    @State private var restStartedAt: Date?
+
+    private let restDuration = 90
 
     var groupedSets: [(exerciseID: String, name: String, displayOrder: Int, sets: [WorkoutSetRecord])] {
         let groups = Dictionary(grouping: session.sets, by: \.exerciseID)
@@ -121,10 +124,37 @@ struct WorkoutLoggingView: View {
                 }
             }
 
+            Section("Workout details") {
+                TextField("Body weight (lb)", text: bodyWeightBinding)
+                    .keyboardType(.decimalPad)
+                TextField("Workout notes", text: notesBinding, axis: .vertical)
+                    .lineLimit(2...4)
+            }
+
+            Section("Rest timer") {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    HStack {
+                        Label(restTimerLabel(at: context.date), systemImage: "timer")
+                            .font(.headline)
+                        Spacer()
+                        Button(restStartedAt == nil ? "Start" : "Restart") {
+                            restStartedAt = .now
+                        }
+                        .buttonStyle(.bordered)
+                        if restStartedAt != nil {
+                            Button("Clear") { restStartedAt = nil }
+                                .buttonStyle(.borderless)
+                        }
+                    }
+                }
+            }
+
             ForEach(groupedSets, id: \.exerciseID) { group in
                 Section(group.name) {
                     ForEach(group.sets) { set in
-                        StrongLiftsSetRow(set: set)
+                        StrongLiftsSetRow(set: set) {
+                            restStartedAt = .now
+                        }
                     }
                 }
             }
@@ -135,10 +165,37 @@ struct WorkoutLoggingView: View {
         }
         .navigationTitle(session.templateName)
     }
+
+    private var bodyWeightBinding: Binding<String> {
+        Binding(
+            get: {
+                guard let bodyWeight = session.bodyWeight else { return "" }
+                return bodyWeight.formatted(.number.precision(.fractionLength(0...1)))
+            },
+            set: { value in
+                session.bodyWeight = Double(value)
+            }
+        )
+    }
+
+    private var notesBinding: Binding<String> {
+        Binding(
+            get: { session.notes ?? "" },
+            set: { session.notes = $0 }
+        )
+    }
+
+    private func restTimerLabel(at date: Date) -> String {
+        guard let restStartedAt else { return "Ready for rest" }
+        let elapsed = max(0, Int(date.timeIntervalSince(restStartedAt)))
+        let remaining = max(0, restDuration - elapsed)
+        return remaining == 0 ? "Rest complete" : "Rest \(remaining)s"
+    }
 }
 
 struct StrongLiftsSetRow: View {
     @Bindable var set: WorkoutSetRecord
+    let onCompleted: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -146,12 +203,16 @@ struct StrongLiftsSetRow: View {
                 Button {
                     toggleComplete()
                 } label: {
-                    Label(set.isComplete ? "Complete" : "Mark complete", systemImage: set.isComplete ? "checkmark.circle.fill" : "circle")
-                        .labelStyle(.iconOnly)
-                        .font(.title3)
+                    ZStack {
+                        Circle()
+                            .fill(set.isComplete ? Color.green : Color.secondary.opacity(0.18))
+                        Text("\(set.setNumber)")
+                            .font(.headline)
+                            .foregroundStyle(set.isComplete ? .white : .primary)
+                    }
+                    .frame(width: 56, height: 56)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(set.isComplete ? .green : .secondary)
                 .accessibilityLabel(set.isComplete ? "Mark set incomplete" : "Mark set complete")
 
                 Text("Set \(set.setNumber)")
@@ -196,6 +257,9 @@ struct StrongLiftsSetRow: View {
         set.isComplete.toggle()
         if set.isComplete && set.completedReps == 0 {
             set.completedReps = set.targetReps
+        }
+        if set.isComplete {
+            onCompleted()
         }
     }
 }
