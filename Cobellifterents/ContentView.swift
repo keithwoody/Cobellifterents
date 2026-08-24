@@ -106,7 +106,10 @@ struct ContentView: View {
 }
 
 struct WorkoutHistoryDetailView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     let session: WorkoutSession
+    @State private var showingDeleteConfirmation = false
 
     private var exerciseGroups: [(id: String, name: String, sets: [WorkoutSetRecord])] {
         let templateOrder = Dictionary(
@@ -174,6 +177,26 @@ struct WorkoutHistoryDetailView: View {
             }
         }
         .navigationTitle(session.templateName)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Delete", role: .destructive) { showingDeleteConfirmation = true }
+            }
+        }
+        .confirmationDialog("Delete this workout?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete Workout", role: .destructive) {
+                deleteWorkout()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This removes the workout and all of its sets from history.")
+        }
+    }
+
+    private func deleteWorkout() {
+        for set in session.sets { modelContext.delete(set) }
+        modelContext.delete(session)
+        try? modelContext.save()
+        dismiss()
     }
 }
 

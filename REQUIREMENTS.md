@@ -111,6 +111,8 @@ Prioritized StrongLifts requirements for today/next:
 4. Imported StrongLifts history should be browseable into session details so imported continuity is visible and auditable.
 5. Exercise progression should be inspectable/editable per exercise: current weight, increment, deload percent/frequency.
 6. Later: program/template management, progress charts, calendar history, notes history, Apple Health, Apple Watch.
+7. Progression settings starts with global default increment and deload percentage controls, followed by grouped Workout A and Workout B exercise lists. Selecting an exercise opens a separate detail editor for sets x reps, weight, increment, deload percentage, and failures before deload; reset-to-default and copy-settings actions are available.
+8. Workout history detail offers destructive delete with confirmation; deleting removes the workout and its sets and returns to history.
 
 Implemented in the current StrongLifts tracking checkpoint:
 

@@ -58,13 +58,27 @@ struct ExerciseProgressionSetting: Codable, Equatable, Identifiable {
     var increment: Double
     var deloadPercentage: Double
     var failureFrequency: Int
+    var targetSets: Int
+    var targetReps: Int
+
+    enum CodingKeys: String, CodingKey { case id, name, currentWeight, increment, deloadPercentage, failureFrequency, targetSets, targetReps }
+    init(id: String, name: String, currentWeight: Double, increment: Double, deloadPercentage: Double, failureFrequency: Int, targetSets: Int = 5, targetReps: Int = 5) {
+        self.id = id; self.name = name; self.currentWeight = currentWeight; self.increment = increment; self.deloadPercentage = deloadPercentage; self.failureFrequency = failureFrequency; self.targetSets = targetSets; self.targetReps = targetReps
+    }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id); name = try values.decode(String.self, forKey: .name)
+        currentWeight = try values.decode(Double.self, forKey: .currentWeight); increment = try values.decode(Double.self, forKey: .increment)
+        deloadPercentage = try values.decode(Double.self, forKey: .deloadPercentage); failureFrequency = try values.decode(Int.self, forKey: .failureFrequency)
+        targetSets = try values.decodeIfPresent(Int.self, forKey: .targetSets) ?? 5; targetReps = try values.decodeIfPresent(Int.self, forKey: .targetReps) ?? 5
+    }
 
     static let defaults: [ExerciseProgressionSetting] = [
-        .init(id: "squat", name: "Squat", currentWeight: 45, increment: 5, deloadPercentage: 10, failureFrequency: 3),
-        .init(id: "bench_press", name: "Bench Press", currentWeight: 45, increment: 5, deloadPercentage: 10, failureFrequency: 3),
-        .init(id: "barbell_row", name: "Barbell Row", currentWeight: 65, increment: 5, deloadPercentage: 10, failureFrequency: 3),
-        .init(id: "overhead_press", name: "Overhead Press", currentWeight: 45, increment: 5, deloadPercentage: 10, failureFrequency: 3),
-        .init(id: "deadlift", name: "Deadlift", currentWeight: 95, increment: 10, deloadPercentage: 10, failureFrequency: 3),
+        .init(id: "squat", name: "Squat", currentWeight: 45, increment: 5, deloadPercentage: 10, failureFrequency: 3, targetSets: 5, targetReps: 5),
+        .init(id: "bench_press", name: "Bench Press", currentWeight: 45, increment: 5, deloadPercentage: 10, failureFrequency: 3, targetSets: 5, targetReps: 5),
+        .init(id: "barbell_row", name: "Barbell Row", currentWeight: 65, increment: 5, deloadPercentage: 10, failureFrequency: 3, targetSets: 5, targetReps: 5),
+        .init(id: "overhead_press", name: "Overhead Press", currentWeight: 45, increment: 5, deloadPercentage: 10, failureFrequency: 3, targetSets: 5, targetReps: 5),
+        .init(id: "deadlift", name: "Deadlift", currentWeight: 95, increment: 10, deloadPercentage: 10, failureFrequency: 3, targetSets: 1, targetReps: 5),
         .init(id: "pull_up", name: "Pull-Up", currentWeight: 0, increment: 5, deloadPercentage: 10, failureFrequency: 3),
     ]
 }
