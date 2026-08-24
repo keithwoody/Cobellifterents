@@ -52,22 +52,37 @@ struct Program: Codable, Equatable, Identifiable {
     var kind: ProgramKind
     var name: String
     var workouts: [ProgramWorkout]
+    var trainingDays: [TrainingDay]
     var generatedSourceKey: String?
 
-    init(id: UUID = UUID(), kind: ProgramKind, name: String, workouts: [ProgramWorkout], generatedSourceKey: String? = nil) {
-        self.id = id; self.kind = kind; self.name = name; self.workouts = workouts; self.generatedSourceKey = generatedSourceKey
+    init(id: UUID = UUID(), kind: ProgramKind, name: String, workouts: [ProgramWorkout], trainingDays: [TrainingDay] = [], generatedSourceKey: String? = nil) {
+        self.id = id; self.kind = kind; self.name = name; self.workouts = workouts
+        self.trainingDays = (trainingDays.isEmpty && kind == .strongLifts ? [.monday, .wednesday, .friday] : trainingDays).sorted()
+        self.generatedSourceKey = generatedSourceKey
     }
 
-    var selectedTrainingDays: [TrainingDay] { Array(Set(workouts.flatMap(\.assignedDays))).sorted() }
+    private enum CodingKeys: String, CodingKey { case id, kind, name, workouts, trainingDays, generatedSourceKey }
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(ProgramKind.self, forKey: .kind)
+        let workouts = try container.decode([ProgramWorkout].self, forKey: .workouts)
+        let days = try container.decodeIfPresent([TrainingDay].self, forKey: .trainingDays)
+            ?? Array(Set(workouts.flatMap(\.assignedDays))).sorted()
+        self.init(id: try container.decode(UUID.self, forKey: .id), kind: kind,
+                  name: try container.decode(String.self, forKey: .name), workouts: workouts,
+                  trainingDays: days,
+                  generatedSourceKey: try container.decodeIfPresent(String.self, forKey: .generatedSourceKey))
+    }
+
+    var selectedTrainingDays: [TrainingDay] {
+        kind == .strongLifts ? trainingDays.sorted() : Array(Set(workouts.flatMap(\.assignedDays))).sorted()
+    }
     var validationError: ProgramValidationError? {
         switch kind {
         case .atg:
             return (3...5).contains(selectedTrainingDays.count) ? nil : .atgRequiresThreeToFiveDays
         case .strongLifts:
             guard workouts.count == 2, workouts.contains(where: \.isStrongLiftsA), workouts.contains(where: \.isStrongLiftsB) else { return .strongLiftsRequiresAB }
-            let ordered = workouts.flatMap { workout in workout.assignedDays.map { ($0, workout.identity) } }.sorted { $0.0 < $1.0 }
-            guard ordered.count > 1 else { return nil }
-            for pair in zip(ordered, ordered.dropFirst()) where pair.0.0 == pair.1.0 || pair.0.1 == pair.1.1 { return .strongLiftsAlternation }
             return nil
         }
     }
@@ -78,7 +93,7 @@ struct Program: Codable, Equatable, Identifiable {
         let workouts = source.workouts.map { workout in
             ProgramWorkout(identity: workout.identity, name: workout.name, exercises: workout.exercises.map { ProgramExercise(name: $0.name, targetSets: $0.targetSets, targetReps: $0.targetReps) }, assignedDays: workout.assignedDays)
         }
-        return Program(kind: kind, name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? kind.displayName : name, workouts: workouts)
+        return Program(kind: kind, name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? kind.displayName : name, workouts: workouts, trainingDays: source.trainingDays)
     }
 
     mutating func addWorkout() {
@@ -101,8 +116,8 @@ struct Program: Codable, Equatable, Identifiable {
     static let strongLiftsDefault: Program = {
         func exercise(_ name: String, _ sets: Int = 5, _ reps: Int = 5) -> ProgramExercise { ProgramExercise(name: name, targetSets: sets, targetReps: reps) }
         return Program(kind: .strongLifts, name: "StrongLifts 5×5", workouts: [
-            ProgramWorkout(identity: "A", name: "Workout A", exercises: [exercise("Squat"), exercise("Bench Press"), exercise("Barbell Row")], assignedDays: [.monday, .friday]),
-            ProgramWorkout(identity: "B", name: "Workout B", exercises: [exercise("Squat"), exercise("Overhead Press"), exercise("Deadlift", 1)], assignedDays: [.wednesday])
+            ProgramWorkout(identity: "A", name: "Workout A", exercises: [exercise("Squat"), exercise("Bench Press"), exercise("Barbell Row")]),
+            ProgramWorkout(identity: "B", name: "Workout B", exercises: [exercise("Squat"), exercise("Overhead Press"), exercise("Deadlift", 1)])
         ])
     }()
 
@@ -116,6 +131,12 @@ struct Program: Codable, Equatable, Identifiable {
     ])
 
     static var defaults: [Program] { [strongLiftsDefault, atgDefault] }
+}
+
+enum StrongLiftsScheduling {
+    static func nextWorkoutIdentity(after lastCompletedIdentity: String?) -> String {
+        lastCompletedIdentity == "A" ? "B" : "A"
+    }
 }
 
 struct ProgramsEnvelope: Codable, Equatable { var version: Int; var programs: [Program] }
@@ -139,7 +160,7 @@ final class ProgramsRepository {
         guard let sourceKey = program.generatedSourceKey else { return (programs, false) }
         if let index = programs.firstIndex(where: { $0.generatedSourceKey == sourceKey }) {
             let existingID = programs[index].id
-            programs[index] = Program(id: existingID, kind: program.kind, name: program.name, workouts: program.workouts, generatedSourceKey: sourceKey)
+            programs[index] = Program(id: existingID, kind: program.kind, name: program.name, workouts: program.workouts, trainingDays: program.trainingDays, generatedSourceKey: sourceKey)
             save(programs)
             return (programs, false)
         }

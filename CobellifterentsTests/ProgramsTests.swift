@@ -5,6 +5,8 @@ final class ProgramsTests: XCTestCase {
     func testDefaultsHaveStrongLiftsABAndModestATG() {
         XCTAssertEqual(Program.defaults.map(\.kind), [.strongLifts, .atg])
         XCTAssertEqual(Program.strongLiftsDefault.workouts.map(\.identity), ["A", "B"])
+        XCTAssertEqual(Program.strongLiftsDefault.trainingDays, [.monday, .wednesday, .friday])
+        XCTAssertTrue(Program.strongLiftsDefault.workouts.allSatisfy { $0.assignedDays.isEmpty })
         XCTAssertTrue(Program.atgDefault.isValid)
         XCTAssertLessThanOrEqual(Program.atgDefault.workouts.flatMap(\.exercises).count, 5)
     }
@@ -34,7 +36,7 @@ final class ProgramsTests: XCTestCase {
         var strongLifts = Program.strongLiftsDefault
         XCTAssertTrue(strongLifts.isValid)
         strongLifts.workouts[1].assignedDays = [.monday]
-        XCTAssertEqual(strongLifts.validationError, .strongLiftsAlternation)
+        XCTAssertTrue(strongLifts.isValid)
 
         var atg = Program.atgDefault
         atg.workouts[0].assignedDays = [.monday, .tuesday]
@@ -43,6 +45,25 @@ final class ProgramsTests: XCTestCase {
         XCTAssertEqual(atg.validationError, .atgRequiresThreeToFiveDays)
         atg.workouts[0].assignedDays = [.monday, .wednesday, .friday, .sunday]
         XCTAssertTrue(atg.isValid)
+    }
+
+    func testLegacyStrongLiftsCodableDerivesProgramDays() throws {
+        var legacy = Program.strongLiftsDefault
+        legacy.workouts[0].assignedDays = [.monday, .friday]
+        legacy.workouts[1].assignedDays = [.wednesday]
+        var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(legacy)) as! [String: Any]
+        object.removeValue(forKey: "trainingDays")
+        let data = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try JSONDecoder().decode(Program.self, from: data)
+        XCTAssertEqual(decoded.trainingDays, [.monday, .wednesday, .friday])
+    }
+
+    func testStrongLiftsNextWorkoutFollowsLastCompletedNotCalendar() {
+        XCTAssertEqual(StrongLiftsScheduling.nextWorkoutIdentity(after: nil), "A")
+        XCTAssertEqual(StrongLiftsScheduling.nextWorkoutIdentity(after: "A"), "B")
+        // Friday B was missed after Wednesday A: Monday still starts B.
+        XCTAssertEqual(StrongLiftsScheduling.nextWorkoutIdentity(after: "A"), "B")
+        XCTAssertEqual(StrongLiftsScheduling.nextWorkoutIdentity(after: "B"), "A")
     }
 
     func testEditingHelpersOnlyAddAndRemoveATGWorkoutsAndPreserveOrder() {

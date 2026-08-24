@@ -16,6 +16,7 @@ enum ImportToProgramInference {
         let sourceKey = "\(kind.rawValue):\(drafts[0].sourceFileName.lowercased())"
         let templates = orderedUnique(drafts.map { normalized($0.templateName).isEmpty ? "Workout" : $0.templateName.trimmingCharacters(in: .whitespacesAndNewlines) })
         var workouts: [ProgramWorkout] = []
+        var inferredTrainingDays: [TrainingDay] = []
         for template in templates {
             let matching = drafts.filter { (normalized($0.templateName).isEmpty ? "Workout" : $0.templateName.trimmingCharacters(in: .whitespacesAndNewlines)) == template }
             let exerciseNames = orderedUnique(matching.flatMap { $0.sets.map(\.exerciseName) })
@@ -25,7 +26,8 @@ enum ImportToProgramInference {
             }
             let days = orderedUnique(matching.map { trainingDay(for: $0.startedAt) }).sorted()
             let identity = isStrongLifts ? strongIdentity(template) : nil
-            workouts.append(ProgramWorkout(identity: identity, name: template, exercises: exercises, assignedDays: days))
+            if isStrongLifts { inferredTrainingDays.append(contentsOf: days) }
+            workouts.append(ProgramWorkout(identity: identity, name: template, exercises: exercises, assignedDays: isStrongLifts ? [] : days))
         }
         if isStrongLifts {
             for index in workouts.indices where strongIdentity(workouts[index].name) != nil {
@@ -42,7 +44,7 @@ enum ImportToProgramInference {
         }
         let dayCount = Set(workouts.flatMap(\.assignedDays)).count
         return InferredProgram(
-            program: Program(kind: programKind, name: name, workouts: workouts, generatedSourceKey: sourceKey),
+            program: Program(kind: programKind, name: name, workouts: workouts, trainingDays: inferredTrainingDays, generatedSourceKey: sourceKey),
             needsScheduleEditing: programKind == .atg && !(3...5).contains(dayCount)
         )
     }

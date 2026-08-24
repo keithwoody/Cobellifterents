@@ -22,13 +22,18 @@ final class ImportToProgramInferenceTests: XCTestCase {
     }
 
     func testStrongLiftsTemplatesRetainABIdentity() {
-        let date = Date(timeIntervalSince1970: 0)
-        func draft(_ name: String, _ id: String) -> WorkoutSessionDraft {
+        let calendar = Calendar(identifier: .gregorian)
+        let monday = calendar.date(from: DateComponents(year: 2026, month: 3, day: 2))!
+        let wednesday = calendar.date(from: DateComponents(year: 2026, month: 3, day: 4))!
+        let friday = calendar.date(from: DateComponents(year: 2026, month: 3, day: 6))!
+        func draft(_ name: String, _ id: String, _ date: Date) -> WorkoutSessionDraft {
             WorkoutSessionDraft(sourceKind: .strongLiftsCSV, sourceFileName: "SL.csv", sourceRecordID: id, templateName: name, startedAt: date, completedAt: date, bodyWeight: nil, notes: "", sets: [])
         }
-        let result = ImportToProgramInference.infer(from: [draft("Workout A", "a"), draft("Workout B", "b")])!
+        let result = ImportToProgramInference.infer(from: [draft("Workout A", "a", monday), draft("Workout B", "b", wednesday), draft("Workout A", "c", friday)])!
         XCTAssertEqual(result.program.kind, .strongLifts)
         XCTAssertEqual(result.program.workouts.map(\.identity), ["A", "B"])
+        XCTAssertEqual(result.program.trainingDays, [.monday, .wednesday, .friday])
+        XCTAssertTrue(result.program.workouts.allSatisfy { $0.assignedDays.isEmpty })
     }
 
     func testEmptyDraftsDoNotInferProgram() {

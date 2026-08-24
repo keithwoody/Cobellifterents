@@ -57,11 +57,14 @@ struct ProgramDetailView: View {
             }
             ForEach(program.workouts) { workout in
                 Section(workout.name) {
-                    if !workout.assignedDays.isEmpty { Text(workout.assignedDays.map(\.shortName).joined(separator: " • ")).foregroundStyle(.secondary) }
+                    if program.kind == .atg && !workout.assignedDays.isEmpty { Text(workout.assignedDays.map(\.shortName).joined(separator: " • ")).foregroundStyle(.secondary) }
                     ForEach(workout.exercises) { exercise in
                         HStack { Text(exercise.name); Spacer(); Text("\(exercise.targetSets) × \(exercise.targetReps)").foregroundStyle(.secondary) }
                     }
                 }
+            }
+            if program.kind == .strongLifts {
+                Section("Training days") { Text(program.trainingDays.map(\.shortName).joined(separator: " • ")) }
             }
             if let error = program.validationError { Text(validationMessage(error)).foregroundStyle(.red) }
         }
@@ -86,6 +89,7 @@ struct ProgramEditorView: View {
         NavigationStack {
             Form {
                 Section("Program") { TextField("Name", text: $program.name) }
+                if program.kind == .strongLifts { strongLiftsDaySection }
                 ForEach(program.workouts.indices, id: \.self) { workoutIndex in
                     workoutSection(workoutIndex)
                 }
@@ -105,7 +109,7 @@ struct ProgramEditorView: View {
     @ViewBuilder private func workoutSection(_ index: Int) -> some View {
         Section {
             TextField("Workout name", text: Binding(get: { program.workouts[index].name }, set: { program.workouts[index].name = $0 }))
-            dayPicker(for: index)
+            if program.kind == .atg { dayPicker(for: index) }
             ForEach(program.workouts[index].exercises.indices, id: \.self) { exerciseIndex in
                 VStack(alignment: .leading) {
                     TextField("Exercise name", text: Binding(get: { program.workouts[index].exercises[exerciseIndex].name }, set: { program.workouts[index].exercises[exerciseIndex].name = $0 }))
@@ -120,17 +124,28 @@ struct ProgramEditorView: View {
         } header: { Text(program.kind == .strongLifts ? "Workout \(program.workouts[index].identity ?? "")" : program.workouts[index].name) }
     }
 
+    private var strongLiftsDaySection: some View {
+        Section("StrongLifts training days") {
+            dayButtons(selection: Binding(get: { program.trainingDays }, set: { program.trainingDays = $0.sorted() }))
+            Text("A and B alternate from the last completed workout; missed days do not change the sequence.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
     private func dayPicker(for index: Int) -> some View {
         VStack(alignment: .leading) {
             Text("Training days").font(.subheadline)
-            HStack { ForEach(TrainingDay.allCases) { day in
-                Button(day.shortName) {
-                    if program.workouts[index].assignedDays.contains(day) { program.workouts[index].assignedDays.removeAll { $0 == day } }
-                    else { program.workouts[index].assignedDays.append(day); program.workouts[index].assignedDays.sort() }
-                }.buttonStyle(.bordered).tint(program.workouts[index].assignedDays.contains(day) ? .accentColor : .gray)
-            }}
+            dayButtons(selection: Binding(get: { program.workouts[index].assignedDays }, set: { program.workouts[index].assignedDays = $0.sorted() }))
             if program.kind == .atg { Text("ATG requires 3–5 selected days (currently \(program.selectedTrainingDays.count)).").font(.caption).foregroundStyle(.secondary) }
         }
+    }
+
+    private func dayButtons(selection: Binding<[TrainingDay]>) -> some View {
+        HStack { ForEach(TrainingDay.allCases) { day in
+            Button(day.shortName) {
+                if selection.wrappedValue.contains(day) { selection.wrappedValue.removeAll { $0 == day } }
+                else { selection.wrappedValue.append(day) }
+            }.buttonStyle(.bordered).tint(selection.wrappedValue.contains(day) ? .accentColor : .gray)
+        }}
     }
 
     private func editorMessage(_ error: ProgramValidationError) -> String {
