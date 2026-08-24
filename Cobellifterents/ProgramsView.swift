@@ -12,8 +12,10 @@ struct ProgramsView: View {
     init(repository: ProgramsRepository = ProgramsRepository()) {
         self.repository = repository
         let loaded = repository.load()
+        let selection = repository.loadActiveSelection(for: loaded)
         _programs = State(initialValue: loaded)
-        _activeSelection = State(initialValue: repository.loadActiveSelection(for: loaded))
+        _activeSelection = State(initialValue: selection)
+        _conflictDays = State(initialValue: Self.conflictDays(in: loaded, selection: selection))
     }
 
     var body: some View {
@@ -92,9 +94,13 @@ struct ProgramsView: View {
     }
 
     private func refreshConflict() {
-        let strong = programs.first { $0.id == activeSelection.strongLiftsID }
-        let atg = programs.first { $0.id == activeSelection.atgID }
-        conflictDays = strong.flatMap { strongProgram in
+        conflictDays = Self.conflictDays(in: programs, selection: activeSelection)
+    }
+
+    private static func conflictDays(in programs: [Program], selection: ActiveProgramSelection) -> [TrainingDay] {
+        let strong = programs.first { $0.id == selection.strongLiftsID }
+        let atg = programs.first { $0.id == selection.atgID }
+        return strong.flatMap { strongProgram in
             atg.map { ProgramScheduleConflict.overlappingDays(strongLifts: strongProgram, atg: $0) }
         } ?? []
     }
