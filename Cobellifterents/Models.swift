@@ -96,7 +96,7 @@ final class WorkoutSession {
     var importSourceFileName: String?
     var importSourceRecordID: String?
     var bodyWeight: Double?
-    var notes: String
+    var notes: String?
     @Relationship(deleteRule: .cascade, inverse: \WorkoutSetRecord.session) var sets: [WorkoutSetRecord]
 
     init(id: UUID = UUID(), templateID: TemplateID, templateName: String, startedAt: Date = Date(), completedAt: Date? = nil, sets: [WorkoutSetRecord] = []) {
@@ -127,7 +127,7 @@ final class WorkoutSetRecord {
     var completedReps: Int
     var weight: Double
     var durationSeconds: Int?
-    var notes: String
+    var notes: String?
     var isComplete: Bool
     var session: WorkoutSession?
 

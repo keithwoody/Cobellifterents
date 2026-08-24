@@ -23,8 +23,13 @@ struct ContentView: View {
             }
             .navigationTitle("Cobellifterents")
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink("Import") { ImportView() }
+                }
                 if activeSession != nil {
-                    Button("Cancel") { activeSession = nil }
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Cancel") { activeSession = nil }
+                    }
                 }
             }
         }
@@ -57,9 +62,16 @@ struct ContentView: View {
                             Text(session.startedAt, style: .date)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Text(session.isComplete ? "Complete" : "In progress")
-                                .font(.caption)
-                                .foregroundStyle(session.isComplete ? .green : .orange)
+                            HStack {
+                                Text(session.isComplete ? "Complete" : "In progress")
+                                    .font(.caption)
+                                    .foregroundStyle(session.isComplete ? .green : .orange)
+                                if session.isImported {
+                                    Text("Imported")
+                                        .font(.caption)
+                                        .foregroundStyle(.blue)
+                                }
+                            }
                         }
                     }
                 }
