@@ -97,35 +97,34 @@ struct WorkoutLoggingView: View {
     @Bindable var session: WorkoutSession
     let onComplete: () -> Void
 
-    var groupedSets: [(exerciseID: String, name: String, sets: [WorkoutSetRecord])] {
+    var groupedSets: [(exerciseID: String, name: String, displayOrder: Int, sets: [WorkoutSetRecord])] {
         let groups = Dictionary(grouping: session.sets, by: \.exerciseID)
         return groups.values.compactMap { sets in
             guard let first = sets.first else { return nil }
-            return (first.exerciseID, first.exerciseName, sets.sorted { $0.setNumber < $1.setNumber })
+            let displayOrder = sets.compactMap(\.displayOrder).min() ?? Int.max
+            return (first.exerciseID, first.exerciseName, displayOrder, sets.sorted { $0.setNumber < $1.setNumber })
         }
-        .sorted { $0.name < $1.name }
+        .sorted {
+            if $0.displayOrder == $1.displayOrder { return $0.name < $1.name }
+            return $0.displayOrder < $1.displayOrder
+        }
     }
+
+    var completedSetCount: Int { session.sets.filter(\.isComplete).count }
 
     var body: some View {
         List {
+            Section {
+                LabeledContent("Progress", value: "\(completedSetCount)/\(session.sets.count) sets")
+                if let started = session.startedAt as Date? {
+                    LabeledContent("Started", value: started.formatted(date: .omitted, time: .shortened))
+                }
+            }
+
             ForEach(groupedSets, id: \.exerciseID) { group in
                 Section(group.name) {
                     ForEach(group.sets) { set in
-                        HStack {
-                            Button {
-                                toggle(set)
-                            } label: {
-                                Image(systemName: set.isComplete ? "checkmark.circle.fill" : "circle")
-                            }
-                            .buttonStyle(.plain)
-
-                            Text("Set \(set.setNumber)")
-                            Spacer()
-                            Stepper("\(set.completedReps)/\(set.targetReps) reps", value: $session.sets[session.sets.firstIndex(where: { $0.id == set.id })!].completedReps, in: 0...20)
-                                .labelsHidden()
-                            Text("\(Int(set.weight)) lb")
-                                .monospacedDigit()
-                        }
+                        StrongLiftsSetRow(set: set)
                     }
                 }
             }
@@ -136,10 +135,68 @@ struct WorkoutLoggingView: View {
         }
         .navigationTitle(session.templateName)
     }
+}
 
-    private func toggle(_ set: WorkoutSetRecord) {
+struct StrongLiftsSetRow: View {
+    @Bindable var set: WorkoutSetRecord
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Button {
+                    toggleComplete()
+                } label: {
+                    Label(set.isComplete ? "Complete" : "Mark complete", systemImage: set.isComplete ? "checkmark.circle.fill" : "circle")
+                        .labelStyle(.iconOnly)
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(set.isComplete ? .green : .secondary)
+                .accessibilityLabel(set.isComplete ? "Mark set incomplete" : "Mark set complete")
+
+                Text("Set \(set.setNumber)")
+                    .font(.headline)
+                Spacer()
+                Text(set.isComplete ? "Done" : "Pending")
+                    .font(.caption)
+                    .foregroundStyle(set.isComplete ? .green : .secondary)
+            }
+
+            HStack(spacing: 16) {
+                Stepper(value: $set.completedReps, in: 0...30) {
+                    VStack(alignment: .leading) {
+                        Text("Reps")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("\(set.completedReps)/\(set.targetReps)")
+                            .monospacedDigit()
+                    }
+                }
+
+                Stepper(value: $set.weight, in: 0...1_000, step: 5) {
+                    VStack(alignment: .leading) {
+                        Text("Weight")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("\(set.weight.formatted(.number.precision(.fractionLength(set.weight.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 1)))) lb")
+                            .monospacedDigit()
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .onChange(of: set.completedReps) { _, newValue in
+            if newValue < set.targetReps {
+                set.isComplete = false
+            }
+        }
+    }
+
+    private func toggleComplete() {
         set.isComplete.toggle()
-        set.completedReps = set.isComplete ? set.targetReps : 0
+        if set.isComplete && set.completedReps == 0 {
+            set.completedReps = set.targetReps
+        }
     }
 }
 

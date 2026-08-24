@@ -123,6 +123,7 @@ final class WorkoutSetRecord {
     var exerciseID: String
     var exerciseName: String
     var setNumber: Int
+    var displayOrder: Int?
     var targetReps: Int
     var completedReps: Int
     var weight: Double
@@ -131,10 +132,11 @@ final class WorkoutSetRecord {
     var isComplete: Bool
     var session: WorkoutSession?
 
-    init(exerciseID: String, exerciseName: String, setNumber: Int, targetReps: Int, completedReps: Int = 0, weight: Double, isComplete: Bool = false) {
+    init(exerciseID: String, exerciseName: String, setNumber: Int, displayOrder: Int? = nil, targetReps: Int, completedReps: Int = 0, weight: Double, isComplete: Bool = false) {
         self.exerciseID = exerciseID
         self.exerciseName = exerciseName
         self.setNumber = setNumber
+        self.displayOrder = displayOrder
         self.targetReps = targetReps
         self.completedReps = completedReps
         self.weight = weight
@@ -147,13 +149,14 @@ final class WorkoutSetRecord {
 extension WorkoutSession {
     static func seeded(from template: WorkoutTemplate, history: [WorkoutSession]) -> WorkoutSession {
         let session = WorkoutSession(templateID: template.id, templateName: template.name)
-        session.sets = template.exercises.flatMap { exercise in
+        session.sets = template.exercises.enumerated().flatMap { exerciseIndex, exercise in
             let nextWeight = WorkoutSession.nextWeight(for: exercise, history: history)
             return (1...exercise.targetSets).map { setNumber in
                 WorkoutSetRecord(
                     exerciseID: exercise.id,
                     exerciseName: exercise.name,
                     setNumber: setNumber,
+                    displayOrder: exerciseIndex,
                     targetReps: exercise.targetReps,
                     weight: nextWeight
                 )

@@ -34,4 +34,26 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
         XCTAssertEqual(sessions[0].isImported, true)
         XCTAssertEqual(sessions[0].sets.count, 5)
     }
+
+    func testImportedSessionPreservesFirstSeenExerciseOrder() throws {
+        let csv = """
+Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Sets×Reps,Sets×Time,Top Set (Reps×LB),e1RM (LB),Reps,Volume (LB),Workout Volume (LB),Duration (hours),Start Time (h:mm),End Time (h:mm),Notes,Set 1 (Reps),Set 1 (LB),Set 2 (Reps),Set 2 (LB),Set 3 (Reps),Set 3 (LB),Set 4 (Reps),Set 4 (LB),Set 5 (Reps),Set 5 (LB)
+2026/03/03,1,Workout A,Quarantine,175,Dumbbell Lunge,5×12,,12×20,31.9,60,2100,9060.0,1.2789,10:02 AM,11:55 AM,,12,20,12,20,12,17.5,12,15,12,15
+2026/03/03,1,Workout A,Quarantine,175,Dumbbell Bench Press,5×12,,12×22.5,35.9,60,2460,9060.0,1.2789,10:02 AM,11:55 AM,,12,20,12,20,12,20,12,20,12,22.5
+2026/03/03,1,Workout A,Quarantine,175,Dumbbell Row,5×12,,12×30,47.9,60,3600,9060.0,1.2789,10:02 AM,11:55 AM,,12,30,12,30,12,30,12,30,12,30
+"""
+        let preview = CSVWorkoutImporter.previewStrongLiftsCSV(csv, sourceFileName: "StrongLifts.csv")
+        let session = WorkoutImportMapper.importedSession(from: preview.workoutSessions[0])
+
+        let exerciseOrder = Dictionary(grouping: session.sets, by: \.exerciseID)
+            .values
+            .compactMap { sets -> (String, Int)? in
+                guard let first = sets.first, let displayOrder = first.displayOrder else { return nil }
+                return (first.exerciseName, displayOrder)
+            }
+            .sorted { $0.1 < $1.1 }
+            .map(\.0)
+
+        XCTAssertEqual(exerciseOrder, ["Dumbbell Lunge", "Dumbbell Bench Press", "Dumbbell Row"])
+    }
 }

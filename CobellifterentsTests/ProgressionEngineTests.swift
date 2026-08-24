@@ -37,4 +37,18 @@ final class ProgressionEngineTests: XCTestCase {
         XCTAssertEqual(StrongLiftsTemplates.template(after: .strongLiftsB).id, .strongLiftsA)
         XCTAssertEqual(StrongLiftsTemplates.template(after: nil).id, .strongLiftsA)
     }
+
+    func testSeededWorkoutPreservesTemplateExerciseOrder() {
+        let session = WorkoutSession.seeded(from: StrongLiftsTemplates.all[0], history: [])
+        let exerciseOrder = Dictionary(grouping: session.sets, by: \.exerciseID)
+            .values
+            .compactMap { sets -> (String, Int)? in
+                guard let first = sets.first, let displayOrder = first.displayOrder else { return nil }
+                return (first.exerciseName, displayOrder)
+            }
+            .sorted { $0.1 < $1.1 }
+            .map(\.0)
+
+        XCTAssertEqual(exerciseOrder, ["Squat", "Bench Press", "Barbell Row"])
+    }
 }

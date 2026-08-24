@@ -85,11 +85,15 @@ enum WorkoutImportMapper {
         session.importSourceRecordID = draft.sourceRecordID
         session.bodyWeight = draft.bodyWeight
         session.notes = draft.notes
+        var exerciseOrderByID: [String: Int] = [:]
         session.sets = draft.sets.map { set in
+            let displayOrder = exerciseOrderByID[set.exerciseID] ?? exerciseOrderByID.count
+            exerciseOrderByID[set.exerciseID] = displayOrder
             let record = WorkoutSetRecord(
                 exerciseID: set.exerciseID,
                 exerciseName: set.exerciseName,
                 setNumber: set.setNumber,
+                displayOrder: displayOrder,
                 targetReps: set.targetReps,
                 completedReps: set.completedReps,
                 weight: set.weight,
