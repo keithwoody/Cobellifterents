@@ -141,6 +141,30 @@ enum StrongLiftsScheduling {
 
 struct ProgramsEnvelope: Codable, Equatable { var version: Int; var programs: [Program] }
 
+enum ProgramNormalization {
+    /// Repairs the fixed StrongLifts shape without replacing any persisted workout data.
+    static func normalized(_ program: Program) -> Program {
+        guard program.kind == .strongLifts else { return program }
+
+        let workoutA = program.workouts.first(where: \.isStrongLiftsA)
+        let workoutB = program.workouts.first(where: \.isStrongLiftsB)
+        let existingWorkouts = [workoutA, workoutB].compactMap { $0 }
+        guard workoutA != nil, workoutB != nil, program.workouts == existingWorkouts else {
+            let repairedWorkouts = [
+                workoutA ?? ProgramWorkout(identity: "A", name: "Workout A", exercises: [], assignedDays: []),
+                workoutB ?? ProgramWorkout(identity: "B", name: "Workout B", exercises: [], assignedDays: [])
+            ]
+            return Program(id: program.id, kind: program.kind, name: program.name, workouts: repairedWorkouts,
+                           trainingDays: program.trainingDays, generatedSourceKey: program.generatedSourceKey)
+        }
+        return program
+    }
+
+    static func normalized(_ programs: [Program]) -> [Program] {
+        programs.map { normalized($0) }
+    }
+}
+
 /// Independent active selections, persisted separately so existing programs.v1 data remains backward compatible.
 struct ActiveProgramSelection: Codable, Equatable {
     var strongLiftsID: UUID?
@@ -201,7 +225,9 @@ final class ProgramsRepository {
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
     func load() -> [Program] {
         guard let data = defaults.data(forKey: key), let envelope = try? JSONDecoder().decode(ProgramsEnvelope.self, from: data), envelope.version == 1, !envelope.programs.isEmpty else { return Program.defaults }
-        return envelope.programs
+        let normalizedPrograms = ProgramNormalization.normalized(envelope.programs)
+        if normalizedPrograms != envelope.programs { save(normalizedPrograms) }
+        return normalizedPrograms
     }
     func save(_ programs: [Program]) {
         guard let data = try? JSONEncoder().encode(ProgramsEnvelope(version: 1, programs: programs)) else { return }

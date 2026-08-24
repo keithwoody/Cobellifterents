@@ -32,6 +32,50 @@ final class ProgramsTests: XCTestCase {
         XCTAssertEqual(repository.load(), Program.defaults)
     }
 
+    func testStrongLiftsNormalizationRepairsOneSidedProgramAndPreservesExistingWorkout() {
+        let existing = ProgramWorkout(id: UUID(), identity: "A", name: "My A",
+                                      exercises: [ProgramExercise(name: "Custom Lift", targetSets: 4, targetReps: 6)],
+                                      assignedDays: [.tuesday])
+        let program = Program(id: UUID(), kind: .strongLifts, name: "Legacy", workouts: [existing],
+                              trainingDays: [.monday, .wednesday, .friday], generatedSourceKey: "legacy")
+
+        let normalized = ProgramNormalization.normalized(program)
+
+        XCTAssertEqual(normalized.workouts.map(\.identity), ["A", "B"])
+        XCTAssertEqual(normalized.workouts[0], existing)
+        XCTAssertEqual(normalized.workouts[1].name, "Workout B")
+        XCTAssertTrue(normalized.workouts[1].exercises.isEmpty)
+        XCTAssertTrue(normalized.workouts[1].assignedDays.isEmpty)
+        XCTAssertNotEqual(normalized.workouts[1].id, existing.id)
+        XCTAssertEqual(normalized.id, program.id)
+        XCTAssertEqual(normalized.name, program.name)
+        XCTAssertEqual(normalized.trainingDays, program.trainingDays)
+        XCTAssertEqual(normalized.generatedSourceKey, program.generatedSourceKey)
+    }
+
+    func testRepositoryRepairsAndPersistsOneSidedStrongLiftsProgram() throws {
+        let suite = "ProgramsRepairTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let repository = ProgramsRepository(defaults: defaults)
+        let existing = ProgramWorkout(identity: "B", name: "Saved B",
+                                      exercises: [ProgramExercise(name: "Deadlift")], assignedDays: [.friday])
+        let legacy = Program(id: UUID(), kind: .strongLifts, name: "Saved Legacy", workouts: [existing])
+        repository.save([legacy])
+
+        let loaded = repository.load()
+
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded[0].workouts.map(\.identity), ["A", "B"])
+        XCTAssertEqual(loaded[0].workouts[1], existing)
+        XCTAssertEqual(loaded[0].workouts[0].name, "Workout A")
+        XCTAssertTrue(loaded[0].workouts[0].exercises.isEmpty)
+        XCTAssertTrue(loaded[0].workouts[0].assignedDays.isEmpty)
+        let persisted = try XCTUnwrap(defaults.data(forKey: "programs.v1"))
+        let envelope = try JSONDecoder().decode(ProgramsEnvelope.self, from: persisted)
+        XCTAssertEqual(envelope.programs, loaded)
+    }
+
     func testScheduleValidationForStrongLiftsAndATG() {
         var strongLifts = Program.strongLiftsDefault
         XCTAssertTrue(strongLifts.isValid)
