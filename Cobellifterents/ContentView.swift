@@ -57,19 +57,23 @@ struct ContentView: View {
                     ContentUnavailableView("No workouts yet", systemImage: "figure.strengthtraining.traditional", description: Text("Start Workout A to create the first StrongLifts-style log."))
                 } else {
                     ForEach(sessions) { session in
-                        VStack(alignment: .leading) {
-                            Text(session.templateName).bold()
-                            Text(session.startedAt, style: .date)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            HStack {
-                                Text(session.isComplete ? "Complete" : "In progress")
+                        NavigationLink {
+                            WorkoutHistoryDetailView(session: session)
+                        } label: {
+                            VStack(alignment: .leading) {
+                                Text(session.templateName).bold()
+                                Text(session.startedAt, style: .date)
                                     .font(.caption)
-                                    .foregroundStyle(session.isComplete ? .green : .orange)
-                                if session.isImported {
-                                    Text("Imported")
+                                    .foregroundStyle(.secondary)
+                                HStack {
+                                    Text(session.isComplete ? "Complete" : "In progress")
                                         .font(.caption)
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(session.isComplete ? .green : .orange)
+                                    if session.isImported {
+                                        Text("Imported")
+                                            .font(.caption)
+                                            .foregroundStyle(.blue)
+                                    }
                                 }
                             }
                         }
@@ -90,6 +94,78 @@ struct ContentView: View {
         session.completedAt = Date()
         try? modelContext.save()
         activeSession = nil
+    }
+}
+
+struct WorkoutHistoryDetailView: View {
+    let session: WorkoutSession
+
+    private var exerciseGroups: [(id: String, name: String, sets: [WorkoutSetRecord])] {
+        let templateOrder = Dictionary(
+            uniqueKeysWithValues: (session.templateID.flatMap { id in StrongLiftsTemplates.all.first { $0.id == id } }?.exercises ?? [])
+                .enumerated()
+                .map { ($0.element.id, $0.offset) }
+        )
+        return Dictionary(grouping: session.sets, by: \.exerciseID)
+            .compactMap { id, sets in
+                guard let first = sets.first else { return nil }
+                return (id, first.exerciseName, sets.sorted { $0.setNumber < $1.setNumber })
+            }
+            .sorted {
+                let leftOrder = templateOrder[$0.id] ?? $0.sets.compactMap(\.displayOrder).min() ?? Int.max
+                let rightOrder = templateOrder[$1.id] ?? $1.sets.compactMap(\.displayOrder).min() ?? Int.max
+                return leftOrder == rightOrder ? $0.name < $1.name : leftOrder < rightOrder
+            }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                LabeledContent("Status", value: session.isComplete ? "Complete" : "In progress")
+                LabeledContent("Started", value: session.startedAt.formatted(date: .abbreviated, time: .shortened))
+                if let completedAt = session.completedAt {
+                    LabeledContent("Finished", value: completedAt.formatted(date: .abbreviated, time: .shortened))
+                }
+                if let bodyWeight = session.bodyWeight {
+                    LabeledContent("Body weight", value: HistoryFormatting.weight(bodyWeight))
+                }
+            }
+
+            if session.isImported {
+                Section("Import source") {
+                    if let sourceKind = session.importSourceKindRawValue {
+                        LabeledContent("Source", value: HistoryFormatting.sourceLabel(sourceKind))
+                    }
+                    if let fileName = session.importSourceFileName {
+                        LabeledContent("File", value: fileName)
+                    }
+                    if let recordID = session.importSourceRecordID {
+                        LabeledContent("Record", value: recordID)
+                    }
+                }
+            }
+
+            ForEach(exerciseGroups, id: \.id) { group in
+                Section(group.name) {
+                    ForEach(group.sets) { set in
+                        HStack {
+                            Text("Set \(set.setNumber)")
+                            Spacer()
+                            Text(HistoryFormatting.setOutcome(completedReps: set.completedReps, targetReps: set.targetReps, weight: set.weight))
+                                .multilineTextAlignment(.trailing)
+                                .monospacedDigit()
+                            Image(systemName: set.isComplete ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(set.isComplete ? .green : .secondary)
+                        }
+                    }
+                }
+            }
+
+            if let notes = session.notes, !notes.isEmpty {
+                Section("Notes") { Text(notes) }
+            }
+        }
+        .navigationTitle(session.templateName)
     }
 }
 
