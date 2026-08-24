@@ -172,16 +172,26 @@ struct ProgramEditorView: View {
         Section {
             TextField("Workout name", text: Binding(get: { program.workouts[index].name }, set: { program.workouts[index].name = $0 }))
             if program.kind == .atg { dayPicker(for: index) }
-            ForEach(program.workouts[index].exercises.indices, id: \.self) { exerciseIndex in
-                VStack(alignment: .leading) {
-                    TextField("Exercise name", text: Binding(get: { program.workouts[index].exercises[exerciseIndex].name }, set: { program.workouts[index].exercises[exerciseIndex].name = $0 }))
-                    HStack {
-                        Stepper("Sets: \(program.workouts[index].exercises[exerciseIndex].targetSets)", value: Binding(get: { program.workouts[index].exercises[exerciseIndex].targetSets }, set: { program.workouts[index].exercises[exerciseIndex].targetSets = max(1, $0) }), in: 1...20)
-                        Stepper("Reps: \(program.workouts[index].exercises[exerciseIndex].targetReps)", value: Binding(get: { program.workouts[index].exercises[exerciseIndex].targetReps }, set: { program.workouts[index].exercises[exerciseIndex].targetReps = max(1, $0) }), in: 1...100)
-                    }.font(.caption)
+            if program.workouts[index].exercises.isEmpty {
+                Label("No exercises yet", systemImage: "square.stack.3d.up")
+                    .foregroundStyle(.secondary)
+                Button { program.addExercise(to: index) } label: {
+                    Label("Add exercise", systemImage: "plus.circle.fill")
+                }
+            } else {
+                ForEach(program.workouts[index].exercises.indices, id: \.self) { exerciseIndex in
+                    VStack(alignment: .leading) {
+                        TextField("Exercise name", text: Binding(get: { program.workouts[index].exercises[exerciseIndex].name }, set: { program.workouts[index].exercises[exerciseIndex].name = $0 }))
+                        HStack {
+                            Stepper("Sets: \(program.workouts[index].exercises[exerciseIndex].targetSets)", value: Binding(get: { program.workouts[index].exercises[exerciseIndex].targetSets }, set: { program.workouts[index].exercises[exerciseIndex].targetSets = max(1, $0) }), in: 1...20)
+                            Stepper("Reps: \(program.workouts[index].exercises[exerciseIndex].targetReps)", value: Binding(get: { program.workouts[index].exercises[exerciseIndex].targetReps }, set: { program.workouts[index].exercises[exerciseIndex].targetReps = max(1, $0) }), in: 1...100)
+                        }.font(.caption)
+                    }
+                }
+                Button { program.addExercise(to: index) } label: {
+                    Label("Add exercise", systemImage: "plus.circle.fill")
                 }
             }
-            Button("Add exercise") { program.addExercise(to: index) }
             if program.kind == .atg && program.workouts[index].exercises.count > 1 { Button("Remove last exercise", role: .destructive) { program.workouts[index].exercises.removeLast() } }
         } header: { Text(program.kind == .strongLifts ? "Workout \(program.workouts[index].identity ?? "")" : program.workouts[index].name) }
     }
