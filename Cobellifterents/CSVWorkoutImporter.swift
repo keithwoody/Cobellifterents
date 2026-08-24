@@ -205,41 +205,43 @@ enum CSVParser {
         var row: [String] = []
         var field = ""
         var inQuotes = false
-        var iterator = text.makeIterator()
+        let scalars = Array(text.unicodeScalars)
+        var index = 0
 
-        while let character = iterator.next() {
-            if character == "\"" {
-                if inQuotes, let next = iterator.next() {
-                    if next == "\"" {
-                        field.append("\"")
-                    } else {
-                        inQuotes = false
-                        if next == "," {
-                            row.append(field)
-                            field = ""
-                        } else if next == "\n" {
-                            row.append(field)
-                            rows.append(row)
-                            row = []
-                            field = ""
-                        } else if next != "\r" {
-                            field.append(next)
-                        }
-                    }
-                } else {
-                    inQuotes.toggle()
+        func appendCompletedRow() {
+            row.append(field)
+            rows.append(row)
+            row = []
+            field = ""
+        }
+
+        while index < scalars.count {
+            let scalar = scalars[index]
+
+            if scalar == "\"" {
+                if inQuotes,
+                   index + 1 < scalars.count,
+                   scalars[index + 1] == "\"" {
+                    field.append("\"")
+                    index += 2
+                    continue
                 }
-            } else if character == ",", !inQuotes {
+                inQuotes.toggle()
+            } else if scalar == ",", !inQuotes {
                 row.append(field)
                 field = ""
-            } else if character == "\n", !inQuotes {
-                row.append(field)
-                rows.append(row)
-                row = []
-                field = ""
-            } else if character != "\r" {
-                field.append(character)
+            } else if (scalar == "\n" || scalar == "\r"), !inQuotes {
+                appendCompletedRow()
+                if scalar == "\r",
+                   index + 1 < scalars.count,
+                   scalars[index + 1] == "\n" {
+                    index += 1
+                }
+            } else if scalar != "\u{feff}" || !rows.isEmpty || !row.isEmpty || !field.isEmpty {
+                field.unicodeScalars.append(scalar)
             }
+
+            index += 1
         }
 
         if !field.isEmpty || !row.isEmpty {
@@ -252,9 +254,13 @@ enum CSVParser {
     static func dictionary(header: [String], row: [String], rowNumber: Int) -> [String: String] {
         var result: [String: String] = ["__rowNumber": String(rowNumber)]
         for (index, key) in header.enumerated() {
-            result[key] = index < row.count ? row[index] : ""
+            result[normalizedHeaderKey(key)] = index < row.count ? row[index] : ""
         }
         return result
+    }
+
+    private static func normalizedHeaderKey(_ key: String) -> String {
+        key.trimmingCharacters(in: CharacterSet(charactersIn: "\u{feff}"))
     }
 }
 
