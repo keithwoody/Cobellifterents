@@ -7,6 +7,7 @@ struct CobellifterentsApp: App {
         let schema = Schema([
             WorkoutSession.self,
             WorkoutSetRecord.self,
+            ImportedRawRecord.self,
         ])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

@@ -133,5 +133,5 @@ struct WorkoutLoggingView: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: [WorkoutSession.self, WorkoutSetRecord.self], inMemory: true)
+        .modelContainer(for: [WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self], inMemory: true)
 }

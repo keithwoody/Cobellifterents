@@ -23,9 +23,25 @@ The first milestone is a local-only app that can:
    - early failures repeat the weight;
    - repeated failures deload by 10%, rounded to normal 5 lb jumps.
 
+## Import continuity policy
+
+Decision: imports should do both provenance preservation and native conversion.
+
+- Raw CSV rows are preserved as immutable provenance records using stable source IDs.
+- Importable rows are converted into editable native workout sessions and set records.
+- Imported native sessions carry source kind, source file, and source record ID for future dedupe/reconciliation.
+- Rows that cannot safely become sessions, such as ATG rows with blank dates, are preserved as raw provenance only and reported as import issues.
+- Raw personal exports and screenshots stay under `imports/` and are ignored by git.
+
+Current CSV observations:
+
+- StrongLifts file groups into dated A/B workout sessions and is suitable for native conversion.
+- ATG file contains many blank-date rows; those require provenance-only handling until we know whether dates are recoverable from another export or app context.
+
 ## Planned but not yet implemented
 
-- Import continuity data from StrongLifts exports.
+- In-app file picker/import UI that inserts `ImportedRawRecord` and converted `WorkoutSession` objects into SwiftData.
+- Import preview screen showing raw row count, converted session count, and issues before commit.
 - Import and annotate screenshots from StrongLifts and ATG apps to extract UX requirements.
 - ATG mobility workout templates and session logging.
 - HealthKit read/write boundary for Apple Health sync.

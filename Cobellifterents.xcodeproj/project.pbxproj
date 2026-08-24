@@ -8,10 +8,13 @@
 
 /* Begin PBXBuildFile section */
 		014493948122F980615DE144 /* ProgressionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE9DE4F483C3949032F09CF /* ProgressionEngineTests.swift */; };
+		07E4C8CDEB9DE52AB4976859 /* CSVWorkoutImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C28EE9E9BE6C957FB3E9EA0 /* CSVWorkoutImporterTests.swift */; };
 		348AB477C1761A2676CC1EAA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F42C20C33225D7C5444E994 /* ContentView.swift */; };
+		36BAEB0E59856C71F2CFD688 /* ImportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69C504CA4B74DF5795D11542 /* ImportModels.swift */; };
 		66855091C95AE245A53E08E3 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFB1CF2E992A7BE8281E0701 /* Models.swift */; };
 		8ECB4495FA17CE768DE91FEA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CFA09EBF87ED98965404939D /* Assets.xcassets */; };
 		C4B371DC4107BB5BBB1DBE45 /* CobellifterentsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E04079E15F5CA2E6BAE0753E /* CobellifterentsApp.swift */; };
+		DC5D11A5277876DE1B735E52 /* CSVWorkoutImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02B2451A024D024D7515736 /* CSVWorkoutImporter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,14 +28,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		69C504CA4B74DF5795D11542 /* ImportModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportModels.swift; sourceTree = "<group>"; };
 		7F42C20C33225D7C5444E994 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		8CD81AB96E7C705C5343FEE5 /* CobellifterentsTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CobellifterentsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9C28EE9E9BE6C957FB3E9EA0 /* CSVWorkoutImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVWorkoutImporterTests.swift; sourceTree = "<group>"; };
 		A0CE3B5EC65D5D03A9C1186E /* Cobellifterents.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cobellifterents.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BC76DE3BE300BA9BBA13C868 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BFE9DE4F483C3949032F09CF /* ProgressionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionEngineTests.swift; sourceTree = "<group>"; };
 		CFA09EBF87ED98965404939D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		DFB1CF2E992A7BE8281E0701 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		E04079E15F5CA2E6BAE0753E /* CobellifterentsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CobellifterentsApp.swift; sourceTree = "<group>"; };
+		F02B2451A024D024D7515736 /* CSVWorkoutImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVWorkoutImporter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -48,6 +54,7 @@
 		97A824C67CB5D2E47C631F5F /* CobellifterentsTests */ = {
 			isa = PBXGroup;
 			children = (
+				9C28EE9E9BE6C957FB3E9EA0 /* CSVWorkoutImporterTests.swift */,
 				BFE9DE4F483C3949032F09CF /* ProgressionEngineTests.swift */,
 			);
 			path = CobellifterentsTests;
@@ -59,6 +66,8 @@
 				CFA09EBF87ED98965404939D /* Assets.xcassets */,
 				E04079E15F5CA2E6BAE0753E /* CobellifterentsApp.swift */,
 				7F42C20C33225D7C5444E994 /* ContentView.swift */,
+				F02B2451A024D024D7515736 /* CSVWorkoutImporter.swift */,
+				69C504CA4B74DF5795D11542 /* ImportModels.swift */,
 				BC76DE3BE300BA9BBA13C868 /* Info.plist */,
 				DFB1CF2E992A7BE8281E0701 /* Models.swift */,
 			);
@@ -168,6 +177,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				07E4C8CDEB9DE52AB4976859 /* CSVWorkoutImporterTests.swift in Sources */,
 				014493948122F980615DE144 /* ProgressionEngineTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -176,8 +186,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DC5D11A5277876DE1B735E52 /* CSVWorkoutImporter.swift in Sources */,
 				C4B371DC4107BB5BBB1DBE45 /* CobellifterentsApp.swift in Sources */,
 				348AB477C1761A2676CC1EAA /* ContentView.swift in Sources */,
+				36BAEB0E59856C71F2CFD688 /* ImportModels.swift in Sources */,
 				66855091C95AE245A53E08E3 /* Models.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

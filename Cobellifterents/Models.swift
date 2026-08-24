@@ -92,6 +92,11 @@ final class WorkoutSession {
     var templateName: String
     var startedAt: Date
     var completedAt: Date?
+    var importSourceKindRawValue: String?
+    var importSourceFileName: String?
+    var importSourceRecordID: String?
+    var bodyWeight: Double?
+    var notes: String
     @Relationship(deleteRule: .cascade, inverse: \WorkoutSetRecord.session) var sets: [WorkoutSetRecord]
 
     init(id: UUID = UUID(), templateID: TemplateID, templateName: String, startedAt: Date = Date(), completedAt: Date? = nil, sets: [WorkoutSetRecord] = []) {
@@ -100,11 +105,17 @@ final class WorkoutSession {
         self.templateName = templateName
         self.startedAt = startedAt
         self.completedAt = completedAt
+        self.importSourceKindRawValue = nil
+        self.importSourceFileName = nil
+        self.importSourceRecordID = nil
+        self.bodyWeight = nil
+        self.notes = ""
         self.sets = sets
     }
 
     var templateID: TemplateID? { TemplateID(rawValue: templateIDRawValue) }
     var isComplete: Bool { completedAt != nil }
+    var isImported: Bool { importSourceRecordID != nil }
 }
 
 @Model
@@ -115,6 +126,8 @@ final class WorkoutSetRecord {
     var targetReps: Int
     var completedReps: Int
     var weight: Double
+    var durationSeconds: Int?
+    var notes: String
     var isComplete: Bool
     var session: WorkoutSession?
 
@@ -125,6 +138,8 @@ final class WorkoutSetRecord {
         self.targetReps = targetReps
         self.completedReps = completedReps
         self.weight = weight
+        self.durationSeconds = nil
+        self.notes = ""
         self.isComplete = isComplete
     }
 }
