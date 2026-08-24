@@ -5,6 +5,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var sessions: [WorkoutSession]
     @State private var activeSession: WorkoutSession?
+    private let progressionSettingsRepository = ProgressionSettingsRepository()
 
     private var nextTemplate: WorkoutTemplate {
         StrongLiftsTemplates.template(after: sessions.first(where: { $0.isComplete })?.templateID)
@@ -25,6 +26,9 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink("Import") { ImportView() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink("Progression") { ProgressionSettingsView() }
                 }
                 if activeSession != nil {
                     ToolbarItem(placement: .topBarLeading) {
@@ -84,7 +88,11 @@ struct ContentView: View {
     }
 
     private func startWorkout() {
-        let session = WorkoutSession.seeded(from: nextTemplate, history: sessions)
+        let session = WorkoutSession.seeded(
+            from: nextTemplate,
+            history: sessions,
+            settings: progressionSettingsRepository.hasCustomSettings ? progressionSettingsRepository.load() : nil
+        )
         modelContext.insert(session)
         try? modelContext.save()
         activeSession = session
