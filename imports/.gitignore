@@ -1,0 +1,4 @@
+# Personal export data and screenshots live here for local analysis only.
+# Do not commit raw health/workout data to git.
+*
+!.gitignore
