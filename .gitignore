@@ -17,3 +17,4 @@ xcuserdata/
 
 # Generated logs
 *.log
+.worktrees/
