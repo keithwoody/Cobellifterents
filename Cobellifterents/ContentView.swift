@@ -30,6 +30,9 @@ struct ContentView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink("Progression") { ProgressionSettingsView() }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink("Programs") { ProgramsView() }
+                }
                 if activeSession != nil {
                     ToolbarItem(placement: .topBarLeading) {
                         Button("Cancel") { activeSession = nil }

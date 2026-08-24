@@ -1,0 +1,60 @@
+import XCTest
+@testable import Cobellifterents
+
+final class ProgramsTests: XCTestCase {
+    func testDefaultsHaveStrongLiftsABAndModestATG() {
+        XCTAssertEqual(Program.defaults.map(\.kind), [.strongLifts, .atg])
+        XCTAssertEqual(Program.strongLiftsDefault.workouts.map(\.identity), ["A", "B"])
+        XCTAssertTrue(Program.atgDefault.isValid)
+        XCTAssertLessThanOrEqual(Program.atgDefault.workouts.flatMap(\.exercises).count, 5)
+    }
+
+    func testProgramCodableRoundTripPreservesExerciseOrder() throws {
+        let original = Program.atgDefault
+        let data = try JSONEncoder().encode(original)
+        XCTAssertEqual(try JSONDecoder().decode(Program.self, from: data), original)
+        XCTAssertEqual(original.workouts[0].exercises.map(\.name), ["Split Squat", "Tibialis Raise", "Calf Raise"])
+    }
+
+    func testRepositoryFallsBackAndPersistsVersionedPrograms() {
+        let suite = "ProgramsTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let repository = ProgramsRepository(defaults: defaults)
+        XCTAssertEqual(repository.load(), Program.defaults)
+        var saved = repository.load()
+        saved[0].name = "My StrongLifts"
+        repository.save(saved)
+        XCTAssertEqual(repository.load().first?.name, "My StrongLifts")
+        defaults.set(Data("bad".utf8), forKey: "programs.v1")
+        XCTAssertEqual(repository.load(), Program.defaults)
+    }
+
+    func testScheduleValidationForStrongLiftsAndATG() {
+        var strongLifts = Program.strongLiftsDefault
+        XCTAssertTrue(strongLifts.isValid)
+        strongLifts.workouts[1].assignedDays = [.monday]
+        XCTAssertEqual(strongLifts.validationError, .strongLiftsAlternation)
+
+        var atg = Program.atgDefault
+        atg.workouts[0].assignedDays = [.monday, .tuesday]
+        XCTAssertEqual(atg.validationError, .atgRequiresThreeToFiveDays)
+        atg.workouts[0].assignedDays = [.monday, .tuesday, .wednesday, .thursday, .friday, .saturday]
+        XCTAssertEqual(atg.validationError, .atgRequiresThreeToFiveDays)
+        atg.workouts[0].assignedDays = [.monday, .wednesday, .friday, .sunday]
+        XCTAssertTrue(atg.isValid)
+    }
+
+    func testEditingHelpersOnlyAddAndRemoveATGWorkoutsAndPreserveOrder() {
+        var atg = Program.atgDefault
+        atg.addExercise(to: 0)
+        XCTAssertEqual(atg.workouts[0].exercises.count, 4)
+        atg.removeExercise(workoutIndex: 0, at: IndexSet(integer: 1))
+        XCTAssertEqual(atg.workouts[0].exercises.map(\.name), ["Split Squat", "Calf Raise", "New Exercise"])
+        atg.addWorkout()
+        XCTAssertEqual(atg.workouts.count, 2)
+        var strongLifts = Program.strongLiftsDefault
+        strongLifts.addWorkout()
+        XCTAssertEqual(strongLifts.workouts.count, 2)
+    }
+}

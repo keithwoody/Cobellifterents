@@ -12,6 +12,7 @@
 		1711316C990F501AC87FBE3F /* ProgressionSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1F5AF1B035D30A54A6ED1A /* ProgressionSettingsTests.swift */; };
 		26D437571318B3C5E31ED7A1 /* ImportCommitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874E203E2C5F2B36E1B740BE /* ImportCommitter.swift */; };
 		348AB477C1761A2676CC1EAA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F42C20C33225D7C5444E994 /* ContentView.swift */; };
+		356421E69CBEF442A54A4209 /* ProgramsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4AF6ECC276C00668884619 /* ProgramsTests.swift */; };
 		36BAEB0E59856C71F2CFD688 /* ImportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69C504CA4B74DF5795D11542 /* ImportModels.swift */; };
 		50FB4F84FE58471F50F41187 /* ProgressionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4E953013E2EC2F52AAC230 /* ProgressionSettingsView.swift */; };
 		66855091C95AE245A53E08E3 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFB1CF2E992A7BE8281E0701 /* Models.swift */; };
@@ -21,8 +22,10 @@
 		8ECB4495FA17CE768DE91FEA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CFA09EBF87ED98965404939D /* Assets.xcassets */; };
 		92342551294A99E0CEA6C27F /* ImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C067522189A7DA23416E7C54 /* ImportView.swift */; };
 		A2DC4CC107B5C13A5D478BC3 /* HistoryFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24049E892F8ECF82314788BB /* HistoryFormattingTests.swift */; };
+		A5379D5056CBD3139309712F /* Programs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FC3EA4183D7D42B7B5AD4A4 /* Programs.swift */; };
 		C4B371DC4107BB5BBB1DBE45 /* CobellifterentsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E04079E15F5CA2E6BAE0753E /* CobellifterentsApp.swift */; };
 		DC5D11A5277876DE1B735E52 /* CSVWorkoutImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02B2451A024D024D7515736 /* CSVWorkoutImporter.swift */; };
+		DE4799E81953F2E743292365 /* ProgramsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E38D1BD9A27B3432A18ADB0 /* ProgramsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,6 +41,8 @@
 /* Begin PBXFileReference section */
 		10AF6DABBEB68989A9A8C4CD /* ImportCommitterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCommitterTests.swift; sourceTree = "<group>"; };
 		24049E892F8ECF82314788BB /* HistoryFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryFormattingTests.swift; sourceTree = "<group>"; };
+		2FC3EA4183D7D42B7B5AD4A4 /* Programs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Programs.swift; sourceTree = "<group>"; };
+		3E38D1BD9A27B3432A18ADB0 /* ProgramsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramsView.swift; sourceTree = "<group>"; };
 		5B2D27A64044715B69987863 /* ProgressionSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionSettings.swift; sourceTree = "<group>"; };
 		69C504CA4B74DF5795D11542 /* ImportModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportModels.swift; sourceTree = "<group>"; };
 		7F42C20C33225D7C5444E994 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -50,6 +55,7 @@
 		BC76DE3BE300BA9BBA13C868 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BFE9DE4F483C3949032F09CF /* ProgressionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionEngineTests.swift; sourceTree = "<group>"; };
 		C067522189A7DA23416E7C54 /* ImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportView.swift; sourceTree = "<group>"; };
+		CF4AF6ECC276C00668884619 /* ProgramsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramsTests.swift; sourceTree = "<group>"; };
 		CFA09EBF87ED98965404939D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		DA65719CD0941A45FE4DEB8F /* HistoryFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryFormatting.swift; sourceTree = "<group>"; };
 		DFB1CF2E992A7BE8281E0701 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -73,6 +79,7 @@
 				9C28EE9E9BE6C957FB3E9EA0 /* CSVWorkoutImporterTests.swift */,
 				24049E892F8ECF82314788BB /* HistoryFormattingTests.swift */,
 				10AF6DABBEB68989A9A8C4CD /* ImportCommitterTests.swift */,
+				CF4AF6ECC276C00668884619 /* ProgramsTests.swift */,
 				BFE9DE4F483C3949032F09CF /* ProgressionEngineTests.swift */,
 				9F1F5AF1B035D30A54A6ED1A /* ProgressionSettingsTests.swift */,
 			);
@@ -92,6 +99,8 @@
 				C067522189A7DA23416E7C54 /* ImportView.swift */,
 				BC76DE3BE300BA9BBA13C868 /* Info.plist */,
 				DFB1CF2E992A7BE8281E0701 /* Models.swift */,
+				2FC3EA4183D7D42B7B5AD4A4 /* Programs.swift */,
+				3E38D1BD9A27B3432A18ADB0 /* ProgramsView.swift */,
 				5B2D27A64044715B69987863 /* ProgressionSettings.swift */,
 				AC4E953013E2EC2F52AAC230 /* ProgressionSettingsView.swift */,
 			);
@@ -204,6 +213,7 @@
 				07E4C8CDEB9DE52AB4976859 /* CSVWorkoutImporterTests.swift in Sources */,
 				A2DC4CC107B5C13A5D478BC3 /* HistoryFormattingTests.swift in Sources */,
 				7E197E9F0BFB97E44BE1C6FE /* ImportCommitterTests.swift in Sources */,
+				356421E69CBEF442A54A4209 /* ProgramsTests.swift in Sources */,
 				014493948122F980615DE144 /* ProgressionEngineTests.swift in Sources */,
 				1711316C990F501AC87FBE3F /* ProgressionSettingsTests.swift in Sources */,
 			);
@@ -221,6 +231,8 @@
 				36BAEB0E59856C71F2CFD688 /* ImportModels.swift in Sources */,
 				92342551294A99E0CEA6C27F /* ImportView.swift in Sources */,
 				66855091C95AE245A53E08E3 /* Models.swift in Sources */,
+				A5379D5056CBD3139309712F /* Programs.swift in Sources */,
+				DE4799E81953F2E743292365 /* ProgramsView.swift in Sources */,
 				8ADEBB95EEF79554D1406089 /* ProgressionSettings.swift in Sources */,
 				50FB4F84FE58471F50F41187 /* ProgressionSettingsView.swift in Sources */,
 			);
