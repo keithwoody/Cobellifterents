@@ -79,6 +79,44 @@ final class ProgramsTests: XCTestCase {
         XCTAssertEqual(strongLifts.workouts.count, 2)
     }
 
+    func testActiveSelectionReplacesAndTogglesWithinEachKind() {
+        let strongOne = Program.new(kind: .strongLifts, name: "One")
+        let strongTwo = Program.new(kind: .strongLifts, name: "Two")
+        let atgOne = Program.new(kind: .atg, name: "ATG One")
+        var selection = ActiveProgramSelectionLogic.toggled(ActiveProgramSelection(), for: strongOne)
+        selection = ActiveProgramSelectionLogic.toggled(selection, for: atgOne)
+        XCTAssertEqual(selection, ActiveProgramSelection(strongLiftsID: strongOne.id, atgID: atgOne.id))
+        selection = ActiveProgramSelectionLogic.toggled(selection, for: strongTwo)
+        XCTAssertEqual(selection.strongLiftsID, strongTwo.id)
+        XCTAssertEqual(selection.atgID, atgOne.id)
+        XCTAssertNil(ActiveProgramSelectionLogic.toggled(selection, for: strongTwo).strongLiftsID)
+    }
+
+    func testActiveSelectionPersistenceRoundTripAndLegacySafeDefault() {
+        let suite = "ProgramsActiveTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let repository = ProgramsRepository(defaults: defaults)
+        XCTAssertEqual(repository.loadActiveSelection(), ActiveProgramSelection())
+        let selection = ActiveProgramSelection(strongLiftsID: UUID(), atgID: UUID())
+        repository.saveActiveSelection(selection)
+        XCTAssertEqual(repository.loadActiveSelection(), selection)
+        defaults.set(Data("legacy".utf8), forKey: "programs.active.v1")
+        XCTAssertEqual(repository.loadActiveSelection(), ActiveProgramSelection())
+    }
+
+    func testActiveScheduleConflictDetection() {
+        var strong = Program.strongLiftsDefault
+        var atg = Program.atgDefault
+        atg.workouts[0].assignedDays = [.tuesday, .thursday, .saturday]
+        XCTAssertFalse(ProgramScheduleConflict.hasConflict(strongLifts: strong, atg: atg))
+        atg.workouts[0].assignedDays = [.monday, .thursday, .saturday]
+        XCTAssertEqual(ProgramScheduleConflict.overlappingDays(strongLifts: strong, atg: atg), [.monday])
+        XCTAssertTrue(ProgramScheduleConflict.hasConflict(strongLifts: strong, atg: atg))
+        strong.trainingDays = [.sunday]
+        XCTAssertFalse(ProgramScheduleConflict.hasConflict(strongLifts: strong, atg: atg))
+    }
+
     func testManualCreationUsesRequestedNameAndFreshStructureIDs() {
         let first = Program.new(kind: .strongLifts, name: "My 5x5")
         let second = Program.new(kind: .strongLifts, name: "Other")

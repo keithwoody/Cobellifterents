@@ -141,9 +141,63 @@ enum StrongLiftsScheduling {
 
 struct ProgramsEnvelope: Codable, Equatable { var version: Int; var programs: [Program] }
 
+/// Independent active selections, persisted separately so existing programs.v1 data remains backward compatible.
+struct ActiveProgramSelection: Codable, Equatable {
+    var strongLiftsID: UUID?
+    var atgID: UUID?
+
+    init(strongLiftsID: UUID? = nil, atgID: UUID? = nil) {
+        self.strongLiftsID = strongLiftsID; self.atgID = atgID
+    }
+    private enum CodingKeys: String, CodingKey { case strongLiftsID, atgID }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        strongLiftsID = try c.decodeIfPresent(UUID.self, forKey: .strongLiftsID)
+        atgID = try c.decodeIfPresent(UUID.self, forKey: .atgID)
+    }
+    func id(for kind: ProgramKind) -> UUID? { kind == .strongLifts ? strongLiftsID : atgID }
+}
+
+enum ActiveProgramSelectionLogic {
+    /// Activating replaces the program of the same kind; activating it again deactivates it.
+    static func toggled(_ selection: ActiveProgramSelection, for program: Program) -> ActiveProgramSelection {
+        var result = selection
+        let newID = selection.id(for: program.kind) == program.id ? nil : program.id
+        switch program.kind {
+        case .strongLifts: result.strongLiftsID = newID
+        case .atg: result.atgID = newID
+        }
+        return result
+    }
+
+    static func normalized(_ selection: ActiveProgramSelection, for programs: [Program]) -> ActiveProgramSelection {
+        let strongIDs = Set(programs.filter { $0.kind == .strongLifts && $0.isValid }.map(\.id))
+        let atgIDs = Set(programs.filter { $0.kind == .atg && $0.isValid }.map(\.id))
+        return ActiveProgramSelection(
+            strongLiftsID: selection.strongLiftsID.flatMap { strongIDs.contains($0) ? $0 : nil },
+            atgID: selection.atgID.flatMap { atgIDs.contains($0) ? $0 : nil })
+    }
+}
+
+enum ProgramScheduleConflict {
+    static func overlappingDays(strongLifts: Program, atg: Program) -> [TrainingDay] {
+        guard strongLifts.kind == .strongLifts, atg.kind == .atg else { return [] }
+        return Array(Set(strongLifts.selectedTrainingDays).intersection(atg.selectedTrainingDays)).sorted()
+    }
+    static func hasConflict(strongLifts: Program, atg: Program) -> Bool {
+        !overlappingDays(strongLifts: strongLifts, atg: atg).isEmpty
+    }
+}
+
+struct ActiveProgramsEnvelope: Codable, Equatable {
+    var version: Int
+    var selection: ActiveProgramSelection
+}
+
 final class ProgramsRepository {
     private let defaults: UserDefaults
     private let key = "programs.v1"
+    private let activeSelectionKey = "programs.active.v1"
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
     func load() -> [Program] {
         guard let data = defaults.data(forKey: key), let envelope = try? JSONDecoder().decode(ProgramsEnvelope.self, from: data), envelope.version == 1, !envelope.programs.isEmpty else { return Program.defaults }
@@ -152,6 +206,29 @@ final class ProgramsRepository {
     func save(_ programs: [Program]) {
         guard let data = try? JSONEncoder().encode(ProgramsEnvelope(version: 1, programs: programs)) else { return }
         defaults.set(data, forKey: key)
+    }
+
+    func loadActiveSelection() -> ActiveProgramSelection {
+        guard let data = defaults.data(forKey: activeSelectionKey),
+              let envelope = try? JSONDecoder().decode(ActiveProgramsEnvelope.self, from: data),
+              envelope.version == 1 else { return ActiveProgramSelection() }
+        return envelope.selection
+    }
+
+    func loadActiveSelection(for programs: [Program]) -> ActiveProgramSelection {
+        ActiveProgramSelectionLogic.normalized(loadActiveSelection(), for: programs)
+    }
+
+    func saveActiveSelection(_ selection: ActiveProgramSelection) {
+        guard let data = try? JSONEncoder().encode(ActiveProgramsEnvelope(version: 1, selection: selection)) else { return }
+        defaults.set(data, forKey: activeSelectionKey)
+    }
+
+    @discardableResult
+    func toggleActive(_ program: Program) -> ActiveProgramSelection {
+        let selection = ActiveProgramSelectionLogic.toggled(loadActiveSelection(), for: program)
+        saveActiveSelection(selection)
+        return selection
     }
 
     @discardableResult

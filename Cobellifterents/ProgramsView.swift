@@ -2,12 +2,18 @@ import SwiftUI
 
 struct ProgramsView: View {
     @State private var programs: [Program]
+    @State private var activeSelection: ActiveProgramSelection
     @State private var creating = false
+    @State private var conflictDays: [TrainingDay] = []
+    @State private var showingConflict = false
+    @State private var showingInvalidProgram = false
     private let repository: ProgramsRepository
 
     init(repository: ProgramsRepository = ProgramsRepository()) {
         self.repository = repository
-        _programs = State(initialValue: repository.load())
+        let loaded = repository.load()
+        _programs = State(initialValue: loaded)
+        _activeSelection = State(initialValue: repository.loadActiveSelection(for: loaded))
     }
 
     var body: some View {
@@ -15,16 +21,33 @@ struct ProgramsView: View {
             ForEach(ProgramKind.allCases) { kind in
                 Section(kind.displayName) {
                     ForEach(programs.filter { $0.kind == kind }) { program in
-                        NavigationLink {
-                            ProgramDetailView(program: program, onSave: save)
-                        } label: {
-                            VStack(alignment: .leading) {
-                                Text(program.name).font(.headline)
-                                Text(kind == .atg ? "Modest starter template • no mobility logging" : "Alternating Workout A / Workout B")
-                                    .font(.caption).foregroundStyle(.secondary)
+                        HStack {
+                            NavigationLink {
+                                ProgramDetailView(program: program, onSave: save)
+                            } label: {
+                                VStack(alignment: .leading) {
+                                    HStack(spacing: 6) {
+                                        Text(program.name).font(.headline)
+                                        if activeSelection.id(for: kind) == program.id {
+                                            Text("ACTIVE").font(.caption2.bold()).foregroundStyle(.green)
+                                        }
+                                    }
+                                    Text(kind == .atg ? "Modest starter template • no mobility logging" : "Alternating Workout A / Workout B")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
                             }
+                            Spacer()
+                            Button(activeSelection.id(for: kind) == program.id ? "Active" : "Set active") { setActive(program) }
+                                .buttonStyle(.bordered)
+                                .tint(activeSelection.id(for: kind) == program.id ? .green : .accentColor)
                         }
                     }
+                }
+            }
+            if !conflictDays.isEmpty {
+                Section("Schedule conflict") {
+                    Label("Active programs overlap on \(conflictDays.map(\.shortName).joined(separator: ", ")). Consider changing one program's training days.", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
                 }
             }
         }
@@ -35,12 +58,45 @@ struct ProgramsView: View {
             repository.save(programs)
             creating = false
         } }
+        .alert("Active program schedule conflict", isPresented: $showingConflict) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Your active StrongLifts and ATG programs overlap on \(conflictDays.map(\.shortName).joined(separator: ", ")). Edit one program's training days if you want to avoid this conflict.")
+        }
+        .alert("Program cannot be active", isPresented: $showingInvalidProgram) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Fix this program's validation issues before marking it active.")
+        }
     }
 
     private func save(_ program: Program) {
         guard let index = programs.firstIndex(where: { $0.id == program.id }) else { return }
         programs[index] = program
         repository.save(programs)
+        refreshConflict()
+    }
+
+    private func setActive(_ program: Program) {
+        guard activeSelection.id(for: program.kind) == program.id || program.isValid else {
+            showingInvalidProgram = true
+            return
+        }
+        let previous = activeSelection
+        activeSelection = ActiveProgramSelectionLogic.toggled(activeSelection, for: program)
+        repository.saveActiveSelection(activeSelection)
+        refreshConflict()
+        if previous != activeSelection && !conflictDays.isEmpty && activeSelection.id(for: program.kind) == program.id {
+            showingConflict = true
+        }
+    }
+
+    private func refreshConflict() {
+        let strong = programs.first { $0.id == activeSelection.strongLiftsID }
+        let atg = programs.first { $0.id == activeSelection.atgID }
+        conflictDays = strong.flatMap { strongProgram in
+            atg.map { ProgramScheduleConflict.overlappingDays(strongLifts: strongProgram, atg: $0) }
+        } ?? []
     }
 }
 
