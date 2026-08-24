@@ -52,9 +52,10 @@ struct Program: Codable, Equatable, Identifiable {
     var kind: ProgramKind
     var name: String
     var workouts: [ProgramWorkout]
+    var generatedSourceKey: String?
 
-    init(id: UUID = UUID(), kind: ProgramKind, name: String, workouts: [ProgramWorkout]) {
-        self.id = id; self.kind = kind; self.name = name; self.workouts = workouts
+    init(id: UUID = UUID(), kind: ProgramKind, name: String, workouts: [ProgramWorkout], generatedSourceKey: String? = nil) {
+        self.id = id; self.kind = kind; self.name = name; self.workouts = workouts; self.generatedSourceKey = generatedSourceKey
     }
 
     var selectedTrainingDays: [TrainingDay] { Array(Set(workouts.flatMap(\.assignedDays))).sorted() }
@@ -71,6 +72,14 @@ struct Program: Codable, Equatable, Identifiable {
         }
     }
     var isValid: Bool { validationError == nil }
+
+    static func new(kind: ProgramKind, name: String) -> Program {
+        let source = kind == .strongLifts ? strongLiftsDefault : atgDefault
+        let workouts = source.workouts.map { workout in
+            ProgramWorkout(identity: workout.identity, name: workout.name, exercises: workout.exercises.map { ProgramExercise(name: $0.name, targetSets: $0.targetSets, targetReps: $0.targetReps) }, assignedDays: workout.assignedDays)
+        }
+        return Program(kind: kind, name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? kind.displayName : name, workouts: workouts)
+    }
 
     mutating func addWorkout() {
         guard kind == .atg else { return }
@@ -122,5 +131,20 @@ final class ProgramsRepository {
     func save(_ programs: [Program]) {
         guard let data = try? JSONEncoder().encode(ProgramsEnvelope(version: 1, programs: programs)) else { return }
         defaults.set(data, forKey: key)
+    }
+
+    @discardableResult
+    func upsertGenerated(_ program: Program) -> (programs: [Program], inserted: Bool) {
+        var programs = load()
+        guard let sourceKey = program.generatedSourceKey else { return (programs, false) }
+        if let index = programs.firstIndex(where: { $0.generatedSourceKey == sourceKey }) {
+            let existingID = programs[index].id
+            programs[index] = Program(id: existingID, kind: program.kind, name: program.name, workouts: program.workouts, generatedSourceKey: sourceKey)
+            save(programs)
+            return (programs, false)
+        }
+        programs.append(program)
+        save(programs)
+        return (programs, true)
     }
 }

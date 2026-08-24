@@ -57,4 +57,13 @@ final class ProgramsTests: XCTestCase {
         strongLifts.addWorkout()
         XCTAssertEqual(strongLifts.workouts.count, 2)
     }
+
+    func testManualCreationUsesRequestedNameAndFreshStructureIDs() {
+        let first = Program.new(kind: .strongLifts, name: "My 5x5")
+        let second = Program.new(kind: .strongLifts, name: "Other")
+        XCTAssertEqual(first.name, "My 5x5")
+        XCTAssertEqual(first.workouts.map(\.identity), ["A", "B"])
+        XCTAssertNotEqual(first.id, second.id)
+        XCTAssertNotEqual(first.workouts[0].id, second.workouts[0].id)
+    }
 }

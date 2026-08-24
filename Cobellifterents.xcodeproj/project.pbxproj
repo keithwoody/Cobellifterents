@@ -10,10 +10,12 @@
 		014493948122F980615DE144 /* ProgressionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE9DE4F483C3949032F09CF /* ProgressionEngineTests.swift */; };
 		07E4C8CDEB9DE52AB4976859 /* CSVWorkoutImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C28EE9E9BE6C957FB3E9EA0 /* CSVWorkoutImporterTests.swift */; };
 		1711316C990F501AC87FBE3F /* ProgressionSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1F5AF1B035D30A54A6ED1A /* ProgressionSettingsTests.swift */; };
+		1F77CDBB270FFC4ACF7AF753 /* ImportToProgramInferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71ADA3130F61EAA1F4F9BB0 /* ImportToProgramInferenceTests.swift */; };
 		26D437571318B3C5E31ED7A1 /* ImportCommitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 874E203E2C5F2B36E1B740BE /* ImportCommitter.swift */; };
 		348AB477C1761A2676CC1EAA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F42C20C33225D7C5444E994 /* ContentView.swift */; };
 		356421E69CBEF442A54A4209 /* ProgramsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4AF6ECC276C00668884619 /* ProgramsTests.swift */; };
 		36BAEB0E59856C71F2CFD688 /* ImportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69C504CA4B74DF5795D11542 /* ImportModels.swift */; };
+		3D9839E9B75A8DDC8D3DD594 /* CreateProgramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F3B5665A2E2AD3E442A890 /* CreateProgramView.swift */; };
 		50FB4F84FE58471F50F41187 /* ProgressionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4E953013E2EC2F52AAC230 /* ProgressionSettingsView.swift */; };
 		66855091C95AE245A53E08E3 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFB1CF2E992A7BE8281E0701 /* Models.swift */; };
 		749A2507EC5C661F80739B06 /* HistoryFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA65719CD0941A45FE4DEB8F /* HistoryFormatting.swift */; };
@@ -24,6 +26,7 @@
 		A2DC4CC107B5C13A5D478BC3 /* HistoryFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24049E892F8ECF82314788BB /* HistoryFormattingTests.swift */; };
 		A5379D5056CBD3139309712F /* Programs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FC3EA4183D7D42B7B5AD4A4 /* Programs.swift */; };
 		C4B371DC4107BB5BBB1DBE45 /* CobellifterentsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E04079E15F5CA2E6BAE0753E /* CobellifterentsApp.swift */; };
+		DAA5F6BE7D0EA57B868391B8 /* ImportToProgramInference.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA15C34A594F97F7A5D6C07D /* ImportToProgramInference.swift */; };
 		DC5D11A5277876DE1B735E52 /* CSVWorkoutImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02B2451A024D024D7515736 /* CSVWorkoutImporter.swift */; };
 		DE4799E81953F2E743292365 /* ProgramsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E38D1BD9A27B3432A18ADB0 /* ProgramsView.swift */; };
 /* End PBXBuildFile section */
@@ -52,6 +55,8 @@
 		9F1F5AF1B035D30A54A6ED1A /* ProgressionSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionSettingsTests.swift; sourceTree = "<group>"; };
 		A0CE3B5EC65D5D03A9C1186E /* Cobellifterents.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cobellifterents.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC4E953013E2EC2F52AAC230 /* ProgressionSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionSettingsView.swift; sourceTree = "<group>"; };
+		B71ADA3130F61EAA1F4F9BB0 /* ImportToProgramInferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportToProgramInferenceTests.swift; sourceTree = "<group>"; };
+		BA15C34A594F97F7A5D6C07D /* ImportToProgramInference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportToProgramInference.swift; sourceTree = "<group>"; };
 		BC76DE3BE300BA9BBA13C868 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BFE9DE4F483C3949032F09CF /* ProgressionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionEngineTests.swift; sourceTree = "<group>"; };
 		C067522189A7DA23416E7C54 /* ImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportView.swift; sourceTree = "<group>"; };
@@ -61,6 +66,7 @@
 		DFB1CF2E992A7BE8281E0701 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		E04079E15F5CA2E6BAE0753E /* CobellifterentsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CobellifterentsApp.swift; sourceTree = "<group>"; };
 		F02B2451A024D024D7515736 /* CSVWorkoutImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVWorkoutImporter.swift; sourceTree = "<group>"; };
+		F7F3B5665A2E2AD3E442A890 /* CreateProgramView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateProgramView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -79,6 +85,7 @@
 				9C28EE9E9BE6C957FB3E9EA0 /* CSVWorkoutImporterTests.swift */,
 				24049E892F8ECF82314788BB /* HistoryFormattingTests.swift */,
 				10AF6DABBEB68989A9A8C4CD /* ImportCommitterTests.swift */,
+				B71ADA3130F61EAA1F4F9BB0 /* ImportToProgramInferenceTests.swift */,
 				CF4AF6ECC276C00668884619 /* ProgramsTests.swift */,
 				BFE9DE4F483C3949032F09CF /* ProgressionEngineTests.swift */,
 				9F1F5AF1B035D30A54A6ED1A /* ProgressionSettingsTests.swift */,
@@ -92,10 +99,12 @@
 				CFA09EBF87ED98965404939D /* Assets.xcassets */,
 				E04079E15F5CA2E6BAE0753E /* CobellifterentsApp.swift */,
 				7F42C20C33225D7C5444E994 /* ContentView.swift */,
+				F7F3B5665A2E2AD3E442A890 /* CreateProgramView.swift */,
 				F02B2451A024D024D7515736 /* CSVWorkoutImporter.swift */,
 				DA65719CD0941A45FE4DEB8F /* HistoryFormatting.swift */,
 				874E203E2C5F2B36E1B740BE /* ImportCommitter.swift */,
 				69C504CA4B74DF5795D11542 /* ImportModels.swift */,
+				BA15C34A594F97F7A5D6C07D /* ImportToProgramInference.swift */,
 				C067522189A7DA23416E7C54 /* ImportView.swift */,
 				BC76DE3BE300BA9BBA13C868 /* Info.plist */,
 				DFB1CF2E992A7BE8281E0701 /* Models.swift */,
@@ -213,6 +222,7 @@
 				07E4C8CDEB9DE52AB4976859 /* CSVWorkoutImporterTests.swift in Sources */,
 				A2DC4CC107B5C13A5D478BC3 /* HistoryFormattingTests.swift in Sources */,
 				7E197E9F0BFB97E44BE1C6FE /* ImportCommitterTests.swift in Sources */,
+				1F77CDBB270FFC4ACF7AF753 /* ImportToProgramInferenceTests.swift in Sources */,
 				356421E69CBEF442A54A4209 /* ProgramsTests.swift in Sources */,
 				014493948122F980615DE144 /* ProgressionEngineTests.swift in Sources */,
 				1711316C990F501AC87FBE3F /* ProgressionSettingsTests.swift in Sources */,
@@ -226,9 +236,11 @@
 				DC5D11A5277876DE1B735E52 /* CSVWorkoutImporter.swift in Sources */,
 				C4B371DC4107BB5BBB1DBE45 /* CobellifterentsApp.swift in Sources */,
 				348AB477C1761A2676CC1EAA /* ContentView.swift in Sources */,
+				3D9839E9B75A8DDC8D3DD594 /* CreateProgramView.swift in Sources */,
 				749A2507EC5C661F80739B06 /* HistoryFormatting.swift in Sources */,
 				26D437571318B3C5E31ED7A1 /* ImportCommitter.swift in Sources */,
 				36BAEB0E59856C71F2CFD688 /* ImportModels.swift in Sources */,
+				DAA5F6BE7D0EA57B868391B8 /* ImportToProgramInference.swift in Sources */,
 				92342551294A99E0CEA6C27F /* ImportView.swift in Sources */,
 				66855091C95AE245A53E08E3 /* Models.swift in Sources */,
 				A5379D5056CBD3139309712F /* Programs.swift in Sources */,

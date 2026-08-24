@@ -13,6 +13,7 @@ struct ImportView: View {
     @State private var errorMessage: String?
     @State private var commitSummary: ImportCommitSummary?
     @State private var isFileImporterPresented = false
+    @State private var createOrUpdateProgram = true
 
     var body: some View {
         List {
@@ -32,6 +33,9 @@ struct ImportView: View {
                     LabeledContent("Raw rows", value: preview.rawRecords.count.formatted())
                     LabeledContent("Native sessions", value: preview.workoutSessions.count.formatted())
                     LabeledContent("Issues", value: preview.issues.count.formatted())
+                    Toggle("Create or update a program from this import", isOn: $createOrUpdateProgram)
+                        .disabled(preview.workoutSessions.isEmpty)
+                    if preview.workoutSessions.isEmpty { Text("No native sessions found; no program will be created.").font(.caption).foregroundStyle(.secondary) }
                     if let first = preview.workoutSessions.first, let last = preview.workoutSessions.last {
                         LabeledContent("Date range") {
                             Text("\(first.startedAt.formatted(date: .abbreviated, time: .omitted)) – \(last.startedAt.formatted(date: .abbreviated, time: .omitted))")
@@ -79,6 +83,11 @@ struct ImportView: View {
                     LabeledContent("Skipped raw rows", value: commitSummary.skippedRawRecords.formatted())
                     LabeledContent("Inserted sessions", value: commitSummary.insertedWorkoutSessions.formatted())
                     LabeledContent("Skipped sessions", value: commitSummary.skippedWorkoutSessions.formatted())
+                    if let result = commitSummary.programResult {
+                        LabeledContent("Program", value: result.name)
+                        Text(result.needsScheduleEditing ? "\(result.status): edit the schedule to select 3–5 days." : "\(result.status) and ready to use.")
+                            .font(.caption).foregroundStyle(result.needsScheduleEditing ? .orange : .secondary)
+                    }
                 }
             }
 
@@ -128,7 +137,7 @@ struct ImportView: View {
     private func commitPreview() {
         guard let preview else { return }
         do {
-            commitSummary = try ImportCommitter.commit(preview, into: modelContext)
+            commitSummary = try ImportCommitter.commit(preview, into: modelContext, createOrUpdateProgram: createOrUpdateProgram)
         } catch {
             errorMessage = error.localizedDescription
         }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProgramsView: View {
     @State private var programs: [Program]
+    @State private var creating = false
     private let repository: ProgramsRepository
 
     init(repository: ProgramsRepository = ProgramsRepository()) {
@@ -28,6 +29,12 @@ struct ProgramsView: View {
             }
         }
         .navigationTitle("Programs")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { creating = true } label: { Label("Create Program", systemImage: "plus") } } }
+        .sheet(isPresented: $creating) { CreateProgramView { program in
+            programs.append(program)
+            repository.save(programs)
+            creating = false
+        } }
     }
 
     private func save(_ program: Program) {
