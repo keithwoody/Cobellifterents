@@ -109,6 +109,28 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
         XCTAssertEqual(reloaded.sets.count, setCount)
     }
 
+    func testAssignmentToUnpersistedDefaultResolvesAfterRepositoryReload() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+            "Strength Training,ATG Pushup,2024-01-11,10,0,lbs,30,30000,\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+        _ = try ImportCommitter.commit(preview, into: context, createOrUpdateProgram: false)
+        let session = try XCTUnwrap(context.fetch(FetchDescriptor<WorkoutSession>()).first)
+
+        let firstRepository = ProgramsRepository(defaults: UserDefaults(suiteName: "ImportCommitterTests.default-relaunch-1")!)
+        let selectedDefault = try XCTUnwrap(firstRepository.load().first(where: { $0.kind == .atg }))
+        XCTAssertTrue(try WorkoutProgramAssignment.assign(session, to: selectedDefault, in: context))
+
+        // A fresh repository instance models the next process launch while the
+        // imported session retains the assignment UUID in SwiftData.
+        let secondRepository = ProgramsRepository(defaults: UserDefaults(suiteName: "ImportCommitterTests.default-relaunch-2")!)
+        let reloadedDefault = try XCTUnwrap(secondRepository.load().first(where: { $0.kind == .atg }))
+        XCTAssertEqual(session.programAssignmentID, reloadedDefault.id)
+        XCTAssertEqual(WorkoutProgramAssignment.program(for: session, in: secondRepository.load()), reloadedDefault)
+    }
+
     func testBulkAssignmentClearReassignmentAndPersistence() throws {
         let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self])
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])

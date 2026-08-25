@@ -113,16 +113,22 @@ struct Program: Codable, Equatable, Identifiable {
         for index in offsets.sorted(by: >) where workouts[workoutIndex].exercises.indices.contains(index) { workouts[workoutIndex].exercises.remove(at: index) }
     }
 
+    // These IDs are part of the persisted assignment contract. Defaults are
+    // returned when no programs have been saved yet, so UUID() here would
+    // make an assignment point at a different Program after relaunch.
+    private static let strongLiftsDefaultID = UUID(uuidString: "7D7D8F1A-1BD2-4B0D-9F2E-7C6F4D2E1A01")!
+    private static let atgDefaultID = UUID(uuidString: "7D7D8F1A-1BD2-4B0D-9F2E-7C6F4D2E1A02")!
+
     static let strongLiftsDefault: Program = {
         func exercise(_ name: String, _ sets: Int = 5, _ reps: Int = 5) -> ProgramExercise { ProgramExercise(name: name, targetSets: sets, targetReps: reps) }
-        return Program(kind: .strongLifts, name: "StrongLifts 5×5", workouts: [
+        return Program(id: strongLiftsDefaultID, kind: .strongLifts, name: "StrongLifts 5×5", workouts: [
             ProgramWorkout(identity: "A", name: "Workout A", exercises: [exercise("Squat"), exercise("Bench Press"), exercise("Barbell Row")]),
             ProgramWorkout(identity: "B", name: "Workout B", exercises: [exercise("Squat"), exercise("Overhead Press"), exercise("Deadlift", 1)])
         ])
     }()
 
     /// A modest strength-and-mobility-inspired starting template; this is not full ATG mobility logging.
-    static let atgDefault: Program = Program(kind: .atg, name: "ATG Basics (modest starter)", workouts: [
+    static let atgDefault: Program = Program(id: atgDefaultID, kind: .atg, name: "ATG Basics (modest starter)", workouts: [
         ProgramWorkout(name: "ATG Training", exercises: [
             ProgramExercise(name: "Split Squat", targetSets: 2, targetReps: 5),
             ProgramExercise(name: "Tibialis Raise", targetSets: 2, targetReps: 10),
