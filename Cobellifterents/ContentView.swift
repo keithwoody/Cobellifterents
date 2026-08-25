@@ -60,7 +60,7 @@ struct ContentView: View {
         }
         .onAppear {
             refreshPrograms()
-            activeSession = sessions.first(where: { !$0.isComplete })
+            activeSession = WorkoutSessionRecovery.resumableSession(from: sessions)
         }
     }
 

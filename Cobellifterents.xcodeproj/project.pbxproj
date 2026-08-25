@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		014493948122F980615DE144 /* ProgressionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE9DE4F483C3949032F09CF /* ProgressionEngineTests.swift */; };
+		044553B43536E85B71F96A89 /* WorkoutSessionRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A3967347696F1FC789C2FC /* WorkoutSessionRecoveryTests.swift */; };
 		07E4C8CDEB9DE52AB4976859 /* CSVWorkoutImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C28EE9E9BE6C957FB3E9EA0 /* CSVWorkoutImporterTests.swift */; };
 		1711316C990F501AC87FBE3F /* ProgressionSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F1F5AF1B035D30A54A6ED1A /* ProgressionSettingsTests.swift */; };
 		1F77CDBB270FFC4ACF7AF753 /* ImportToProgramInferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71ADA3130F61EAA1F4F9BB0 /* ImportToProgramInferenceTests.swift */; };
@@ -29,6 +30,7 @@
 		DAA5F6BE7D0EA57B868391B8 /* ImportToProgramInference.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA15C34A594F97F7A5D6C07D /* ImportToProgramInference.swift */; };
 		DC5D11A5277876DE1B735E52 /* CSVWorkoutImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02B2451A024D024D7515736 /* CSVWorkoutImporter.swift */; };
 		DE4799E81953F2E743292365 /* ProgramsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E38D1BD9A27B3432A18ADB0 /* ProgramsView.swift */; };
+		E1CBACFFABEEF7FA69DABE13 /* WorkoutSessionRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C89BF4C65BACD642F439C87 /* WorkoutSessionRecovery.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -42,6 +44,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0C89BF4C65BACD642F439C87 /* WorkoutSessionRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSessionRecovery.swift; sourceTree = "<group>"; };
 		10AF6DABBEB68989A9A8C4CD /* ImportCommitterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCommitterTests.swift; sourceTree = "<group>"; };
 		24049E892F8ECF82314788BB /* HistoryFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryFormattingTests.swift; sourceTree = "<group>"; };
 		2FC3EA4183D7D42B7B5AD4A4 /* Programs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Programs.swift; sourceTree = "<group>"; };
@@ -56,6 +59,7 @@
 		A0CE3B5EC65D5D03A9C1186E /* Cobellifterents.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cobellifterents.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC4E953013E2EC2F52AAC230 /* ProgressionSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionSettingsView.swift; sourceTree = "<group>"; };
 		B71ADA3130F61EAA1F4F9BB0 /* ImportToProgramInferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportToProgramInferenceTests.swift; sourceTree = "<group>"; };
+		B7A3967347696F1FC789C2FC /* WorkoutSessionRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSessionRecoveryTests.swift; sourceTree = "<group>"; };
 		BA15C34A594F97F7A5D6C07D /* ImportToProgramInference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportToProgramInference.swift; sourceTree = "<group>"; };
 		BC76DE3BE300BA9BBA13C868 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BFE9DE4F483C3949032F09CF /* ProgressionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionEngineTests.swift; sourceTree = "<group>"; };
@@ -89,6 +93,7 @@
 				CF4AF6ECC276C00668884619 /* ProgramsTests.swift */,
 				BFE9DE4F483C3949032F09CF /* ProgressionEngineTests.swift */,
 				9F1F5AF1B035D30A54A6ED1A /* ProgressionSettingsTests.swift */,
+				B7A3967347696F1FC789C2FC /* WorkoutSessionRecoveryTests.swift */,
 			);
 			path = CobellifterentsTests;
 			sourceTree = "<group>";
@@ -112,6 +117,7 @@
 				3E38D1BD9A27B3432A18ADB0 /* ProgramsView.swift */,
 				5B2D27A64044715B69987863 /* ProgressionSettings.swift */,
 				AC4E953013E2EC2F52AAC230 /* ProgressionSettingsView.swift */,
+				0C89BF4C65BACD642F439C87 /* WorkoutSessionRecovery.swift */,
 			);
 			path = Cobellifterents;
 			sourceTree = "<group>";
@@ -226,6 +232,7 @@
 				356421E69CBEF442A54A4209 /* ProgramsTests.swift in Sources */,
 				014493948122F980615DE144 /* ProgressionEngineTests.swift in Sources */,
 				1711316C990F501AC87FBE3F /* ProgressionSettingsTests.swift in Sources */,
+				044553B43536E85B71F96A89 /* WorkoutSessionRecoveryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -247,6 +254,7 @@
 				DE4799E81953F2E743292365 /* ProgramsView.swift in Sources */,
 				8ADEBB95EEF79554D1406089 /* ProgressionSettings.swift in Sources */,
 				50FB4F84FE58471F50F41187 /* ProgressionSettingsView.swift in Sources */,
+				E1CBACFFABEEF7FA69DABE13 /* WorkoutSessionRecovery.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
