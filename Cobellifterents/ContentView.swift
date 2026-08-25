@@ -49,7 +49,6 @@ struct ContentView: View {
     private var recentCompletedSessions: [WorkoutSession] {
         HistoryFormatting.recentCompletedSessions(from: sessions)
     }
-
     var body: some View {
         NavigationStack {
             Group {
