@@ -18,7 +18,6 @@ struct ImportView: View {
     @State private var startDate = Calendar.current.date(from: DateComponents(year: 2024, month: 1, day: 1)) ?? Date()
     @State private var endDate = Date()
     @State private var selectedCSV: String?
-=======
     @State private var programs: [Program] = []
     @State private var selectedSessionIDs: Set<UUID> = []
     @State private var showingBulkConfirmation = false
@@ -181,7 +180,6 @@ struct ImportView: View {
         .onChange(of: startDate) { _, _ in rebuildATGPreview() }
         .onChange(of: endDate) { _, _ in rebuildATGPreview() }
         .onChange(of: filterByDate) { _, _ in rebuildATGPreview() }
-=======
         .onAppear { programs = programsRepository.load() }
         .alert("Program assignment", isPresented: Binding(get: { assignmentError != nil }, set: { if !$0 { assignmentError = nil } })) {
             Button("OK") { assignmentError = nil }
@@ -235,7 +233,8 @@ struct ImportView: View {
     private func rebuildATGPreview() {
         guard selectedSourceKind == .atgCSV, let selectedCSV, let selectedFileName else { return }
         preview = CSVWorkoutImporter.previewATGCSV(selectedCSV, sourceFileName: selectedFileName, startDate: filterByDate ? startDate : nil, endDate: filterByDate ? Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) : nil)
-=======
+    }
+
     private func update(_ session: WorkoutSession, programID: UUID?) {
         do {
             if let programID, let program = programs.first(where: { $0.id == programID }) {

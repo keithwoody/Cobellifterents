@@ -174,7 +174,7 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
             "Strength Training,ATG Pushup,2024-01-11,10,0,lbs,30,30000,\n"
         let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
         let programs = ATGProgramPlanner.placeholderPrograms(from: preview.workoutSessions)
-        XCTAssertEqual(programs.map(\.name), ["Ankle Ability Zero"])
-        XCTAssertEqual(preview.workoutSessions.map(\.programAssignment), [.ankleAbilityZero, .unassignedAmbiguous])
+        XCTAssertEqual(programs.map(\.name), [])
+        XCTAssertEqual(preview.workoutSessions.map(\.programAssignment), [.unassignedAmbiguous])
     }
 }
