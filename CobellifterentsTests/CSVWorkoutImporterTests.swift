@@ -146,7 +146,7 @@ Strength Training,ATG Split Squat,2024-01-11,5,0,lbs,0,0,3x10 instead of 5x5
         XCTAssertEqual(preview.issues.map(\.rowNumber), [5, 6])
     }
 
-    func testATGProgramAssignmentUsesBackForLatestSevenDaysAndWeekdayChangeForAnkle() {
+    func testATGProgramAssignmentRequiresExplicitEvidence() {
         let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
             "Strength Training,Monday Original,2024-01-01,1,,,,,\n" +
             "Strength Training,Tuesday Stable,2024-01-02,1,,,,,\n" +
@@ -155,11 +155,20 @@ Strength Training,ATG Split Squat,2024-01-11,5,0,lbs,0,0,3x10 instead of 5x5
         let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
         let assignments = Dictionary(uniqueKeysWithValues: preview.workoutSessions.map { (ISODateOnly.string(from: $0.startedAt), $0.programAssignment) })
 
-        XCTAssertEqual(assignments["2024-01-01"], .kneeAbilityZero)
-        XCTAssertEqual(assignments["2024-01-02"], .kneeAbilityZero)
-        XCTAssertEqual(assignments["2024-01-08"], .ankleAbilityZero)
-        XCTAssertEqual(assignments["2024-01-20"], .backAbilityZero)
-        XCTAssertTrue(preview.workoutSessions.allSatisfy { $0.programAssignmentEvidence?.contains("latest seven days") == true })
+        XCTAssertTrue(assignments.values.allSatisfy { $0 == .unassignedAmbiguous })
+        XCTAssertTrue(preview.workoutSessions.allSatisfy { $0.programAssignmentEvidence == nil })
+    }
+
+    func testATGProgramAssignmentPreservesExplicitSupportedIdentity() {
+        let csv = "workout_type,program,exercise,date,repetitions\n" +
+            "Strength Training,Ankle Ability Zero,Calf Raise,2024-01-20,5\n" +
+            "Strength Training,Back Ability Zero,Back Extension,2024-01-21,5\n" +
+            "Strength Training,Unknown Plan,Move,2024-01-22,5\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+
+        XCTAssertEqual(preview.workoutSessions.map(\.programAssignment), [.ankleAbilityZero, .backAbilityZero, .unassignedAmbiguous])
+        XCTAssertEqual(preview.workoutSessions[0].programAssignmentEvidence, "Explicit ATG export field: Ankle Ability Zero")
+        XCTAssertEqual(preview.workoutSessions[2].programAssignmentEvidence, "Explicit ATG export field: Unknown Plan")
     }
 
     func testStableIDsAreDeterministicForDedupe() {

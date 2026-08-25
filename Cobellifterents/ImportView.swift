@@ -77,7 +77,7 @@ struct ImportView: View {
                             Text(session.templateName).bold()
                             Text(session.startedAt.formatted(date: .abbreviated, time: .shortened))
                             if preview.sourceKind == .atgCSV {
-                                Text(session.programAssignment.displayName)
+                                Text(session.programAssignment == .unassignedAmbiguous ? "Program assignment needed" : session.programAssignment.displayName)
                                     .font(.caption)
                                     .foregroundStyle(session.programAssignment == .unassignedAmbiguous ? .orange : .secondary)
                             }

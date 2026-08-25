@@ -77,12 +77,13 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
         XCTAssertEqual(session.sets.first?.durationSeconds, 30)
     }
 
-    func testATGGeneratedProgramsUseKnownPlaceholders() {
-        let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
-            "Strength Training,ATG Pushup,2024-01-11,10,0,lbs,30,30000,\n"
+    func testATGGeneratedProgramsOnlyUseExplicitKnownAssignments() {
+        let csv = "workout_type,program,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+            "Strength Training,Ankle Ability Zero,ATG Pushup,2024-01-11,10,0,lbs,30,30000,\n" +
+            "Strength Training,Unknown Plan,ATG Split Squat,2024-01-12,5,0,lbs,0,0,\n"
         let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
         let programs = ATGProgramPlanner.placeholderPrograms(from: preview.workoutSessions)
-        XCTAssertEqual(programs.map(\.name), ["Knee Ability Zero", "Ankle Ability Zero", "Back Ability Zero"])
-        XCTAssertEqual(preview.workoutSessions.first?.programAssignment, .backAbilityZero)
+        XCTAssertEqual(programs.map(\.name), ["Ankle Ability Zero"])
+        XCTAssertEqual(preview.workoutSessions.map(\.programAssignment), [.ankleAbilityZero, .unassignedAmbiguous])
     }
 }
