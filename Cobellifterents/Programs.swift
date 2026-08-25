@@ -282,13 +282,22 @@ enum ActiveProgramSelectionLogic {
 }
 
 struct UpcomingScheduleEntry: Equatable, Identifiable {
-    enum Kind: Equatable { case workout, rest }
+    enum Kind: Equatable { case workout, rest, restDay }
 
     let date: Date
     let kind: Kind
     let workoutNames: [String]
+    let workout: ProgramWorkout?
+
+    init(date: Date, kind: Kind, workoutNames: [String], workout: ProgramWorkout? = nil) {
+        self.date = date
+        self.kind = kind
+        self.workoutNames = workoutNames
+        self.workout = workout
+    }
 
     var id: Date { date }
+    var title: String { kind == .rest || kind == .restDay ? "Rest Day" : (workout?.name ?? workoutNames.first ?? "Workout") }
 }
 
 struct UpcomingStartableWorkout {
@@ -334,6 +343,24 @@ enum UpcomingSchedule {
             }
             return UpcomingScheduleEntry(date: day, kind: names.isEmpty ? .rest : .workout, workoutNames: names)
         }
+    }
+
+    static func entries(for program: Program, from startDate: Date = Date(), limit: Int = 3, calendar: Calendar = .current) -> [UpcomingScheduleEntry] {
+        guard limit > 0, program.isValid, !program.scheduledTrainingDays.isEmpty else { return [] }
+        var date = calendar.startOfDay(for: startDate)
+        var result: [UpcomingScheduleEntry] = []
+        var occurrence = 0
+        while result.count < limit {
+            let day = TrainingDay.from(calendarWeekday: calendar.component(.weekday, from: date))
+            if program.restDays.contains(day) {
+                result.append(UpcomingScheduleEntry(date: date, kind: .restDay, workoutNames: []))
+            } else if program.scheduledTrainingDays.contains(day), let workout = program.kind == .strongLifts ? program.workouts.first(where: { $0.identity == (occurrence.isMultiple(of: 2) ? "A" : "B") }) : program.workouts.first(where: { $0.assignedDays.contains(day) }) {
+                result.append(UpcomingScheduleEntry(date: date, kind: .workout, workoutNames: [workout.name], workout: workout))
+                occurrence += 1
+            }
+            date = calendar.date(byAdding: .day, value: 1, to: date) ?? date.addingTimeInterval(86_400)
+        }
+        return result
     }
 
     /// Selects the first scheduled workout with exercises, skipping rest days and
