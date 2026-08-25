@@ -260,6 +260,7 @@ struct WorkoutHistoryDetailView: View {
     var body: some View {
         List {
             Section {
+                LabeledContent("Program", value: WorkoutDisplayNaming.programName(for: session))
                 LabeledContent("Status", value: session.isComplete ? "Complete" : "In progress")
                 LabeledContent("Started", value: session.startedAt.formatted(date: .abbreviated, time: .shortened))
                 if let assignment = session.programAssignmentRawValue, session.programAssignmentID != nil {
