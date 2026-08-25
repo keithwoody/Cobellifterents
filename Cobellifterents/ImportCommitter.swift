@@ -27,9 +27,18 @@ enum ImportCommitter {
             else { modelContext.insert(WorkoutImportMapper.importedSession(from: sessionDraft)); summary.insertedWorkoutSessions += 1 }
         }
         try modelContext.save()
-        if createOrUpdateProgram, let inferred = ImportToProgramInference.infer(from: preview.workoutSessions, sourceKind: preview.sourceKind) {
-            let result = programsRepository.upsertGenerated(inferred.program)
-            summary.programResult = ImportProgramCommitResult(name: inferred.program.name, status: result.inserted ? "Created" : "Updated", needsScheduleEditing: inferred.needsScheduleEditing)
+        if createOrUpdateProgram {
+            let programs: [Program] = preview.sourceKind == .atgCSV
+                ? ATGProgramPlanner.placeholderPrograms(from: ATGProgramPlanner.assignPrograms(to: preview.workoutSessions))
+                : (ImportToProgramInference.infer(from: preview.workoutSessions, sourceKind: preview.sourceKind).map { [$0.program] } ?? [])
+            var results: [ImportProgramCommitResult] = []
+            for program in programs {
+                let result = programsRepository.upsertGenerated(program)
+                results.append(ImportProgramCommitResult(name: program.name, status: result.inserted ? "Created" : "Updated", needsScheduleEditing: program.kind == .atg && !(3...5).contains(program.selectedTrainingDays.count)))
+            }
+            if !results.isEmpty {
+                summary.programResult = ImportProgramCommitResult(name: results.map(\.name).joined(separator: ", "), status: results.map(\.status).joined(separator: "/"), needsScheduleEditing: results.contains { $0.needsScheduleEditing })
+            }
         }
         return summary
     }

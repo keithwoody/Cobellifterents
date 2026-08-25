@@ -5,6 +5,39 @@ struct InferredProgram {
     let needsScheduleEditing: Bool
 }
 
+enum ATGProgramPlanner {
+    static func assignPrograms(to drafts: [WorkoutSessionDraft]) -> [WorkoutSessionDraft] {
+        guard let latest = drafts.map(\.startedAt).max() else { return drafts }
+        let recentStart = Calendar.current.date(byAdding: .day, value: -6, to: latest) ?? latest
+        let ordered = drafts.sorted { $0.startedAt < $1.startedAt }
+        var signatures: [Int: String] = [:]
+        var changed = false
+        return ordered.map { draft in
+            let weekday = Calendar(identifier: .gregorian).component(.weekday, from: draft.startedAt)
+            let signature = draft.sets.map(\.exerciseName).joined(separator: "|")
+            if let previous = signatures[weekday], previous != signature { changed = true }
+            signatures[weekday] = signature
+            let assignment: ImportProgramAssignment = draft.startedAt >= recentStart ? .backAbilityZero : (changed ? .ankleAbilityZero : .kneeAbilityZero)
+            return WorkoutSessionDraft(sourceKind: draft.sourceKind, sourceFileName: draft.sourceFileName, sourceRecordID: draft.sourceRecordID, templateName: draft.templateName, startedAt: draft.startedAt, completedAt: draft.completedAt, bodyWeight: draft.bodyWeight, notes: draft.notes, sets: draft.sets, programAssignment: assignment, programAssignmentEvidence: "Derived from dated exercise history; latest seven days assigned to Back Ability Zero")
+        }
+    }
+
+    static func placeholderPrograms(from drafts: [WorkoutSessionDraft]) -> [Program] {
+        [ImportProgramAssignment.kneeAbilityZero, .ankleAbilityZero, .backAbilityZero].map { assignment in
+            let matching = drafts.filter { $0.programAssignment == assignment }
+            let names = matching.flatMap { $0.sets.map(\.exerciseName) }.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+            let days = Array(Set(matching.map { weekday(for: $0.startedAt) })).sorted()
+            let exercises = names.map { name in ProgramExercise(name: name, targetSets: 1, targetReps: max(1, matching.flatMap { $0.sets.filter { $0.exerciseName == name }.map(\.targetReps) }.max() ?? 1)) }
+            return Program(kind: .atg, name: assignment.displayName, workouts: [ProgramWorkout(name: assignment.displayName, exercises: exercises, assignedDays: days)], trainingDays: days, generatedSourceKey: "atg-placeholder:\(assignment.rawValue):\(matching.first?.sourceFileName.lowercased() ?? "import")")
+        }
+    }
+
+    private static func weekday(for date: Date) -> TrainingDay {
+        let value = Calendar(identifier: .gregorian).component(.weekday, from: date)
+        return [.sunday, .monday, .tuesday, .wednesday, .thursday, .friday, .saturday][value - 1]
+    }
+}
+
 /// Pure conversion of imported native sessions into an editable Program.
 enum ImportToProgramInference {
     static func infer(from drafts: [WorkoutSessionDraft], sourceKind: ImportSourceKind? = nil) -> InferredProgram? {
