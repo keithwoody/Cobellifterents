@@ -240,6 +240,53 @@ final class ProgramsTests: XCTestCase {
         XCTAssertEqual(template.exercises.map(\.targetSets), [5, 5, 1])
         XCTAssertEqual(template.exercises.map(\.name), ["Squat", "Overhead Press", "Deadlift"])
     }
+    func testNextStartableWorkoutUsesNearestATGBeforeLaterStrongLifts() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let tuesday = calendar.date(from: DateComponents(year: 2026, month: 8, day: 25))!
+        var atg = Program.atgDefault
+        atg.workouts[0].assignedDays = [.tuesday, .thursday, .saturday]
+
+        let selected = try XCTUnwrap(UpcomingSchedule.nextStartableWorkout(
+            from: tuesday,
+            calendar: calendar,
+            strongLifts: Program.strongLiftsDefault,
+            atg: atg
+        ))
+
+        XCTAssertEqual(calendar.component(.weekday, from: selected.date), 3)
+        XCTAssertEqual(selected.template.id, .atgImported)
+        XCTAssertEqual(selected.template.name, "ATG Basics (modest starter) • ATG Training")
+    }
+
+    func testNextStartableWorkoutSkipsRestDaysAndFindsLaterWorkout() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let tuesday = calendar.date(from: DateComponents(year: 2026, month: 8, day: 25))!
+        var atg = Program.atgDefault
+        atg.workouts[0].assignedDays = [.thursday, .saturday, .sunday]
+
+        let selected = try XCTUnwrap(UpcomingSchedule.nextStartableWorkout(
+            from: tuesday,
+            calendar: calendar,
+            strongLifts: nil,
+            atg: atg
+        ))
+
+        XCTAssertEqual(calendar.component(.weekday, from: selected.date), 5)
+        XCTAssertEqual(selected.template.id, .atgImported)
+    }
+
+    func testNextStartableWorkoutReturnsNilWithoutValidScheduledWorkout() {
+        var atg = Program.atgDefault
+        atg.workouts[0].assignedDays = [.tuesday, .thursday]
+        XCTAssertNil(UpcomingSchedule.nextStartableWorkout(strongLifts: nil, atg: atg))
+
+        atg.workouts[0].assignedDays = [.tuesday, .thursday, .saturday]
+        atg.workouts[0].exercises = []
+        XCTAssertNil(UpcomingSchedule.nextStartableWorkout(strongLifts: nil, atg: atg))
+    }
+
     func testUpcomingScheduleShowsThreeDaysAndExplicitRestDays() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

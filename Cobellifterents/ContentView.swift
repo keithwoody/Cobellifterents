@@ -15,10 +15,21 @@ struct ContentView: View {
     }
 
     private var selectedProgramWorkout: ProgramWorkout? {
-        activeStrongLiftsProgram.flatMap { StrongLiftsProgramSelection.nextWorkout(in: $0, after: sessions) }
+        nextScheduledWorkout?.workout
+    }
+
+    private var nextScheduledWorkout: UpcomingStartableWorkout? {
+        UpcomingSchedule.nextStartableWorkout(
+            strongLifts: activeStrongLiftsProgram ?? Program.strongLiftsDefault,
+            atg: programs.first { $0.id == activeSelection.atgID && $0.kind == .atg && $0.isValid },
+            completedSessions: sessions
+        )
     }
 
     private var nextTemplate: WorkoutTemplate {
+        if let nextScheduledWorkout {
+            return nextScheduledWorkout.template
+        }
         if let selectedProgramWorkout, let activeStrongLiftsProgram,
            let template = ProgramWorkoutConversion.template(from: selectedProgramWorkout, programName: activeStrongLiftsProgram.name) {
             return template

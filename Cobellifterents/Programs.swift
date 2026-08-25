@@ -162,7 +162,14 @@ enum ProgramWorkoutConversion {
     }
 
     static func template(from workout: ProgramWorkout, programName: String?) -> WorkoutTemplate? {
-        guard let identity = workout.identity, let templateID = TemplateID(rawValue: "strongLifts\(identity)") else { return nil }
+        let templateID: TemplateID
+        if let identity = workout.identity, let strongLiftsID = TemplateID(rawValue: "strongLifts\(identity)") {
+            templateID = strongLiftsID
+        } else if workout.identity == nil {
+            templateID = .atgImported
+        } else {
+            return nil
+        }
         let displayName = programName.map { WorkoutDisplayNaming.combined(programName: $0, workoutName: workout.name) } ?? workout.name
         return WorkoutTemplate(id: templateID, name: displayName, exercises: workout.exercises.map { exercise in
             ExerciseTemplate(id: exercise.id.uuidString, name: exercise.name, targetSets: exercise.targetSets, targetReps: exercise.targetReps,
@@ -259,6 +266,12 @@ struct UpcomingScheduleEntry: Equatable, Identifiable {
     var id: Date { date }
 }
 
+struct UpcomingStartableWorkout {
+    let date: Date
+    let workout: ProgramWorkout
+    let template: WorkoutTemplate
+}
+
 enum UpcomingSchedule {
     /// Returns the next three calendar days, starting today, for the active programs.
     /// A day without a scheduled workout is retained as an explicit rest entry.
@@ -296,6 +309,50 @@ enum UpcomingSchedule {
             }
             return UpcomingScheduleEntry(date: day, kind: names.isEmpty ? .rest : .workout, workoutNames: names)
         }
+    }
+
+    /// Selects the first scheduled workout with exercises, skipping rest days and
+    /// scheduled-but-empty workouts. This is the source of truth for the home
+    /// start card as well as the upcoming schedule display.
+    static func nextStartableWorkout(
+        from date: Date = Date(),
+        calendar: Calendar = .current,
+        strongLifts: Program?,
+        atg: Program?,
+        completedSessions: [WorkoutSession] = []
+    ) -> UpcomingStartableWorkout? {
+        let strongProgram = strongLifts?.kind == .strongLifts && strongLifts?.isValid == true ? strongLifts : nil
+        let atgProgram = atg?.kind == .atg && atg?.isValid == true ? atg : nil
+        guard strongProgram != nil || atgProgram != nil else { return nil }
+
+        var nextStrongIdentity = strongProgram.flatMap {
+            StrongLiftsProgramSelection.nextWorkout(in: $0, after: completedSessions)?.identity
+        }
+        let start = calendar.startOfDay(for: date)
+
+        // One full week is sufficient for the weekly schedules supported by the app.
+        for offset in 0..<7 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
+            let trainingDay = TrainingDay.from(calendarWeekday: calendar.component(.weekday, from: day))
+            var scheduled: [(ProgramWorkout, String?)] = []
+
+            if let strongProgram, strongProgram.trainingDays.contains(trainingDay),
+               let identity = nextStrongIdentity,
+               let workout = strongProgram.workouts.first(where: { $0.identity == identity }) {
+                scheduled.append((workout, strongProgram.name))
+                nextStrongIdentity = identity == "A" ? "B" : "A"
+            }
+            if let atgProgram {
+                scheduled.append(contentsOf: atgProgram.workouts.filter { $0.assignedDays.contains(trainingDay) }.map { ($0, atgProgram.name) })
+            }
+
+            for (workout, programName) in scheduled {
+                guard let template = ProgramWorkoutConversion.template(from: workout, programName: programName),
+                      !template.exercises.isEmpty else { continue }
+                return UpcomingStartableWorkout(date: day, workout: workout, template: template)
+            }
+        }
+        return nil
     }
 }
 
