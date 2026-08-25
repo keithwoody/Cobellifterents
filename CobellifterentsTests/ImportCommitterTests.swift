@@ -86,4 +86,73 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
         XCTAssertEqual(programs.map(\.name), ["Ankle Ability Zero"])
         XCTAssertEqual(preview.workoutSessions.map(\.programAssignment), [.ankleAbilityZero, .unassignedAmbiguous])
     }
+
+    func testIndividualAssignmentPersistsWithoutChangingImportData() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+            "Strength Training,ATG Pushup,2024-01-11,10,0,lbs,30,30000,\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+        _ = try ImportCommitter.commit(preview, into: context, createOrUpdateProgram: false)
+        let session = try XCTUnwrap(context.fetch(FetchDescriptor<WorkoutSession>()).first)
+        let sourceID = session.importSourceRecordID
+        let setCount = session.sets.count
+        let program = Program.new(kind: .atg, name: "Mobility")
+
+        XCTAssertTrue(try WorkoutProgramAssignment.assign(session, to: program, in: context))
+        let reloaded = try XCTUnwrap(context.fetch(FetchDescriptor<WorkoutSession>()).first)
+        XCTAssertEqual(reloaded.programAssignmentID, program.id)
+        XCTAssertEqual(reloaded.programAssignmentRawValue, "Mobility")
+        XCTAssertEqual(reloaded.programAssignmentEvidence, "manual")
+        XCTAssertEqual(reloaded.importSourceRecordID, sourceID)
+        XCTAssertEqual(reloaded.sets.count, setCount)
+    }
+
+    func testBulkAssignmentClearReassignmentAndPersistence() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let sessions = (0..<3).map { index in
+            let session = WorkoutSession(templateID: .atgImported, templateName: "Imported \(index)")
+            session.importSourceRecordID = "source-\(index)"
+            session.sets = [WorkoutSetRecord(exerciseID: "e", exerciseName: "Exercise", setNumber: 1, targetReps: 5, weight: 0)]
+            context.insert(session)
+            return session
+        }
+        try context.save()
+        let first = Program.new(kind: .atg, name: "First")
+        let second = Program.new(kind: .atg, name: "Second")
+
+        XCTAssertEqual(try WorkoutProgramAssignment.assign(sessions, to: first, in: context), 3)
+        XCTAssertEqual(try WorkoutProgramAssignment.assign(Array(sessions.prefix(2)), to: second, in: context), 2)
+        XCTAssertEqual(try WorkoutProgramAssignment.clear([sessions[2]], in: context), 1)
+
+        let reloaded = try context.fetch(FetchDescriptor<WorkoutSession>()).sorted { $0.importSourceRecordID! < $1.importSourceRecordID! }
+        XCTAssertEqual(reloaded[0].programAssignmentID, second.id)
+        XCTAssertEqual(reloaded[1].programAssignmentID, second.id)
+        XCTAssertNil(reloaded[2].programAssignmentID)
+        XCTAssertEqual(reloaded.map { $0.importSourceRecordID }, ["source-0", "source-1", "source-2"])
+        XCTAssertEqual(reloaded.flatMap { $0.sets }.count, 3)
+    }
+
+    func testNonImportedWorkoutCannotBeAssigned() throws {
+        let schema = Schema([WorkoutSession.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let session = WorkoutSession(templateID: .strongLiftsA, templateName: "Workout A")
+        let program = Program.new(kind: .strongLifts, name: "Strong")
+        XCTAssertThrowsError(try WorkoutProgramAssignment.assign(session, to: program, in: context)) { error in
+            XCTAssertEqual(error as? WorkoutProgramAssignmentError, .workoutNotImported)
+        }
+    }
+
+    func testATGGeneratedProgramSignalsMissingProgramAssignment() {
+        let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+            "Strength Training,ATG Pushup,2024-01-11,10,0,lbs,30,30000,\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+        let programs = ATGProgramPlanner.placeholderPrograms(from: preview.workoutSessions)
+        XCTAssertEqual(programs.map(\.name), ["Ankle Ability Zero"])
+        XCTAssertEqual(preview.workoutSessions.map(\.programAssignment), [.ankleAbilityZero, .unassignedAmbiguous])
+    }
 }

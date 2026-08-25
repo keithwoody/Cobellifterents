@@ -130,6 +130,9 @@ final class WorkoutSession {
     var importSourceRecordID: String?
     var bodyWeight: Double?
     var notes: String?
+    /// The selected Program's stable identifier. This is intentionally separate from
+    /// imported source fields so assignment edits never rewrite provenance.
+    var programAssignmentID: UUID?
     var programAssignmentRawValue: String?
     var programAssignmentEvidence: String?
     @Relationship(deleteRule: .cascade, inverse: \WorkoutSetRecord.session) var sets: [WorkoutSetRecord]
@@ -145,6 +148,7 @@ final class WorkoutSession {
         self.importSourceRecordID = nil
         self.bodyWeight = nil
         self.notes = ""
+        self.programAssignmentID = nil
         self.programAssignmentRawValue = nil
         self.programAssignmentEvidence = nil
         self.sets = sets

@@ -18,6 +18,21 @@ struct ImportView: View {
     @State private var startDate = Calendar.current.date(from: DateComponents(year: 2024, month: 1, day: 1)) ?? Date()
     @State private var endDate = Date()
     @State private var selectedCSV: String?
+=======
+    @State private var programs: [Program] = []
+    @State private var selectedSessionIDs: Set<UUID> = []
+    @State private var showingBulkConfirmation = false
+    @State private var bulkProgram: Program?
+    @State private var assignmentError: String?
+    private let programsRepository = ProgramsRepository()
+
+    private var selectedSessions: [WorkoutSession] {
+        importedSessions.filter { selectedSessionIDs.contains($0.id) }
+    }
+
+    private func program(for session: WorkoutSession) -> Program? {
+        WorkoutProgramAssignment.program(for: session, in: programs)
+    }
 
     var body: some View {
         List {
@@ -107,6 +122,50 @@ struct ImportView: View {
                 }
             }
 
+            Section("Imported workout Programs") {
+                if !selectedSessions.isEmpty {
+                    Text("\(selectedSessions.count) selected")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                    Menu("Assign selected") {
+                        ForEach(programs.filter(\.isValid)) { program in
+                            Button(program.name) {
+                                bulkProgram = program
+                                showingBulkConfirmation = true
+                            }
+                        }
+                        Button("Clear assignments", role: .destructive) {
+                            bulkProgram = nil
+                            showingBulkConfirmation = true
+                        }
+                    }
+                    Button("Clear selection") { selectedSessionIDs.removeAll() }
+                }
+                ForEach(importedSessions) { session in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Image(systemName: selectedSessionIDs.contains(session.id) ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(selectedSessionIDs.contains(session.id) ? .blue : .secondary)
+                            Text(session.templateName).bold()
+                            Spacer()
+                            Text(WorkoutProgramPresentation.name(for: session, programs: programs))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            if selectedSessionIDs.contains(session.id) { selectedSessionIDs.remove(session.id) }
+                            else { selectedSessionIDs.insert(session.id) }
+                        }
+                        Picker("Program", selection: Binding<UUID?>(
+                            get: { program(for: session)?.id },
+                            set: { value in update(session, programID: value) })) {
+                            Text("Unassigned").tag(nil as UUID?)
+                            ForEach(programs.filter(\.isValid)) { program in Text(program.name).tag(program.id as UUID?) }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
+            }
+
             Section("Imported totals") {
                 LabeledContent("Raw provenance records", value: rawRecords.count.formatted())
                 LabeledContent("Imported sessions", value: importedSessions.count.formatted())
@@ -122,6 +181,15 @@ struct ImportView: View {
         .onChange(of: startDate) { _, _ in rebuildATGPreview() }
         .onChange(of: endDate) { _, _ in rebuildATGPreview() }
         .onChange(of: filterByDate) { _, _ in rebuildATGPreview() }
+=======
+        .onAppear { programs = programsRepository.load() }
+        .alert("Program assignment", isPresented: Binding(get: { assignmentError != nil }, set: { if !$0 { assignmentError = nil } })) {
+            Button("OK") { assignmentError = nil }
+        } message: { Text(assignmentError ?? "") }
+        .confirmationDialog("Change \(selectedSessions.count) workout assignments?", isPresented: $showingBulkConfirmation, titleVisibility: .visible) {
+            Button("Confirm", role: bulkProgram == nil ? .destructive : nil) { applyBulkAssignment() }
+            Button("Cancel", role: .cancel) { }
+        } message: { Text("Imported data, provenance, and exercises will be preserved.") }
         .fileImporter(
             isPresented: $isFileImporterPresented,
             allowedContentTypes: [.commaSeparatedText, .plainText, UTType(filenameExtension: "csv")!],
@@ -158,6 +226,7 @@ struct ImportView: View {
         guard let preview else { return }
         do {
             commitSummary = try ImportCommitter.commit(preview, into: modelContext, createOrUpdateProgram: createOrUpdateProgram)
+            programs = programsRepository.load()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -166,6 +235,30 @@ struct ImportView: View {
     private func rebuildATGPreview() {
         guard selectedSourceKind == .atgCSV, let selectedCSV, let selectedFileName else { return }
         preview = CSVWorkoutImporter.previewATGCSV(selectedCSV, sourceFileName: selectedFileName, startDate: filterByDate ? startDate : nil, endDate: filterByDate ? Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) : nil)
+=======
+    private func update(_ session: WorkoutSession, programID: UUID?) {
+        do {
+            if let programID, let program = programs.first(where: { $0.id == programID }) {
+                _ = try WorkoutProgramAssignment.assign(session, to: program, in: modelContext)
+            } else {
+                _ = try WorkoutProgramAssignment.clear(session, in: modelContext)
+            }
+        } catch {
+            assignmentError = error.localizedDescription
+        }
+    }
+
+    private func applyBulkAssignment() {
+        do {
+            if let bulkProgram {
+                _ = try WorkoutProgramAssignment.assign(selectedSessions, to: bulkProgram, in: modelContext)
+            } else {
+                _ = try WorkoutProgramAssignment.clear(selectedSessions, in: modelContext)
+            }
+            selectedSessionIDs.removeAll()
+        } catch {
+            assignmentError = error.localizedDescription
+        }
     }
 }
 

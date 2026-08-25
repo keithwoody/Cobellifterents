@@ -137,6 +137,7 @@ enum WorkoutImportMapper {
         session.notes = draft.notes
         session.programAssignmentRawValue = draft.programAssignment.rawValue
         session.programAssignmentEvidence = draft.programAssignmentEvidence
+        session.programAssignmentID = nil
         var exerciseOrderByID: [String: Int] = [:]
         session.sets = draft.sets.map { set in
             let displayOrder = exerciseOrderByID[set.exerciseID] ?? exerciseOrderByID.count

@@ -27,6 +27,7 @@
 		92342551294A99E0CEA6C27F /* ImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C067522189A7DA23416E7C54 /* ImportView.swift */; };
 		A2DC4CC107B5C13A5D478BC3 /* HistoryFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24049E892F8ECF82314788BB /* HistoryFormattingTests.swift */; };
 		A5379D5056CBD3139309712F /* Programs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FC3EA4183D7D42B7B5AD4A4 /* Programs.swift */; };
+		B06FC538BEC369959FC947E7 /* WorkoutProgramAssignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D61BF07C5B796513065ED71 /* WorkoutProgramAssignment.swift */; };
 		C4B371DC4107BB5BBB1DBE45 /* CobellifterentsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E04079E15F5CA2E6BAE0753E /* CobellifterentsApp.swift */; };
 		CD74947D74D8CE3883650359 /* WorkoutDisplayNamingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6911433F8FE66148BC4DF49 /* WorkoutDisplayNamingTests.swift */; };
 		DAA5F6BE7D0EA57B868391B8 /* ImportToProgramInference.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA15C34A594F97F7A5D6C07D /* ImportToProgramInference.swift */; };
@@ -49,6 +50,7 @@
 		0C89BF4C65BACD642F439C87 /* WorkoutSessionRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSessionRecovery.swift; sourceTree = "<group>"; };
 		10AF6DABBEB68989A9A8C4CD /* ImportCommitterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCommitterTests.swift; sourceTree = "<group>"; };
 		24049E892F8ECF82314788BB /* HistoryFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryFormattingTests.swift; sourceTree = "<group>"; };
+		2D61BF07C5B796513065ED71 /* WorkoutProgramAssignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutProgramAssignment.swift; sourceTree = "<group>"; };
 		2FC3EA4183D7D42B7B5AD4A4 /* Programs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Programs.swift; sourceTree = "<group>"; };
 		3E38D1BD9A27B3432A18ADB0 /* ProgramsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramsView.swift; sourceTree = "<group>"; };
 		5B2D27A64044715B69987863 /* ProgressionSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressionSettings.swift; sourceTree = "<group>"; };
@@ -123,6 +125,7 @@
 				5B2D27A64044715B69987863 /* ProgressionSettings.swift */,
 				AC4E953013E2EC2F52AAC230 /* ProgressionSettingsView.swift */,
 				F369B52F95C6659E8EF6B6DA /* WorkoutDisplayNaming.swift */,
+				2D61BF07C5B796513065ED71 /* WorkoutProgramAssignment.swift */,
 				0C89BF4C65BACD642F439C87 /* WorkoutSessionRecovery.swift */,
 			);
 			path = Cobellifterents;
@@ -262,6 +265,7 @@
 				8ADEBB95EEF79554D1406089 /* ProgressionSettings.swift in Sources */,
 				50FB4F84FE58471F50F41187 /* ProgressionSettingsView.swift in Sources */,
 				143DC2BA5790F0D584D5AD6B /* WorkoutDisplayNaming.swift in Sources */,
+				B06FC538BEC369959FC947E7 /* WorkoutProgramAssignment.swift in Sources */,
 				E1CBACFFABEEF7FA69DABE13 /* WorkoutSessionRecovery.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
