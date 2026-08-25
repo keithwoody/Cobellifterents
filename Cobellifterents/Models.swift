@@ -157,6 +157,12 @@ final class WorkoutSession {
     var templateID: TemplateID? { TemplateID(rawValue: templateIDRawValue) }
     var isComplete: Bool { completedAt != nil }
     var isImported: Bool { importSourceRecordID != nil }
+    var importProgramAssignment: ImportProgramAssignment? {
+        guard let rawValue = programAssignmentRawValue,
+              let assignment = ImportProgramAssignment(rawValue: rawValue),
+              assignment != .unassignedAmbiguous else { return nil }
+        return assignment
+    }
 }
 
 @Model

@@ -26,7 +26,11 @@ enum WorkoutDisplayNaming {
     }
 
     static func displayName(for session: WorkoutSession) -> String {
-        displayName(programName: nil, workoutName: session.templateName, templateID: session.templateID)
+        displayName(
+            programName: session.importProgramAssignment?.displayName,
+            workoutName: session.templateName,
+            templateID: session.templateID
+        )
     }
 
     private static func isBareStrongLiftsWorkoutName(_ name: String) -> Bool {

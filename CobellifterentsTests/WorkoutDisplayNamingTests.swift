@@ -24,6 +24,28 @@ final class WorkoutDisplayNamingTests: XCTestCase {
         )
     }
 
+    func testImportedATGSessionShowsExplicitProgramAssignment() {
+        let session = WorkoutSession(templateID: .atgImported, templateName: "ATG Mobility")
+        session.programAssignmentRawValue = ImportProgramAssignment.kneeAbilityZero.rawValue
+
+        XCTAssertEqual(WorkoutDisplayNaming.displayName(for: session), "Knee Ability Zero • ATG Mobility")
+    }
+
+    func testImportedATGProgramsAllDisplayCorrectly() {
+        for assignment in [ImportProgramAssignment.kneeAbilityZero, .ankleAbilityZero, .backAbilityZero] {
+            let session = WorkoutSession(templateID: .atgImported, templateName: "ATG Mobility")
+            session.programAssignmentRawValue = assignment.rawValue
+            XCTAssertEqual(WorkoutDisplayNaming.displayName(for: session), "\(assignment.displayName) • ATG Mobility")
+        }
+    }
+
+    func testAmbiguousImportedATGSessionDoesNotInventProgramAssignment() {
+        let session = WorkoutSession(templateID: .atgImported, templateName: "ATG Mobility")
+        session.programAssignmentRawValue = ImportProgramAssignment.unassignedAmbiguous.rawValue
+
+        XCTAssertEqual(WorkoutDisplayNaming.displayName(for: session), "ATG Mobility")
+    }
+
     func testSeededSessionKeepsCombinedCustomIdentityForPersistence() throws {
         let workout = ProgramWorkout(identity: "A", name: "Workout A", exercises: [])
         let template = try XCTUnwrap(ProgramWorkoutConversion.template(from: workout, programName: "Custom Program"))

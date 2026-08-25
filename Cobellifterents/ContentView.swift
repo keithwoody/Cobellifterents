@@ -309,7 +309,7 @@ struct WorkoutHistoryDetailView: View {
                 Section("Notes") { Text(notes) }
             }
         }
-        .navigationTitle(session.templateName)
+        .navigationTitle(WorkoutDisplayNaming.displayName(for: session))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Delete", role: .destructive) { showingDeleteConfirmation = true }
@@ -403,7 +403,7 @@ struct WorkoutLoggingView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!session.sets.allSatisfy(\.isComplete))
         }
-        .navigationTitle(session.templateName)
+        .navigationTitle(WorkoutDisplayNaming.displayName(for: session))
     }
 
     private var bodyWeightBinding: Binding<String> {
