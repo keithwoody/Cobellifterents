@@ -30,6 +30,22 @@ struct ContentView: View {
         HomeWorkoutLogic.shouldDisableStart(selectedProgramWorkout: selectedProgramWorkout, template: nextTemplate)
     }
 
+    private var upcomingEntries: [UpcomingScheduleEntry] {
+        UpcomingSchedule.entries(
+            strongLifts: activeStrongLiftsProgram ?? Program.strongLiftsDefault,
+            atg: programs.first { $0.id == activeSelection.atgID && $0.kind == .atg && $0.isValid },
+            completedSessions: sessions
+        )
+    }
+
+    private var nextWorkoutDisplayName: String {
+        WorkoutDisplayNaming.displayName(
+            programName: activeStrongLiftsProgram?.name,
+            workoutName: nextTemplate.name,
+            templateID: nextTemplate.id
+        )
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -68,12 +84,24 @@ struct ContentView: View {
     private var startView: some View {
         List {
             Section("Next up") {
+                ForEach(upcomingEntries) { entry in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(entry.date, format: .dateTime.weekday(.wide).month(.abbreviated).day())
+                            .font(.headline)
+                        if entry.kind == .rest {
+                            Label("Rest day", systemImage: "bed.double.fill")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(entry.workoutNames, id: \.self) { workoutName in
+                                Label(workoutName, systemImage: "figure.strengthtraining.traditional")
+                            }
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(WorkoutDisplayNaming.displayName(
-                        programName: activeStrongLiftsProgram?.name,
-                        workoutName: nextTemplate.name,
-                        templateID: nextTemplate.id
-                    ))
+                    Text("Start \(nextWorkoutDisplayName)")
                     .font(.title2)
                     .bold()
                     if isEmptySelectedCustomWorkout {

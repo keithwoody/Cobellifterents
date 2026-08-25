@@ -240,7 +240,43 @@ final class ProgramsTests: XCTestCase {
         XCTAssertEqual(template.exercises.map(\.targetSets), [5, 5, 1])
         XCTAssertEqual(template.exercises.map(\.name), ["Squat", "Overhead Press", "Deadlift"])
     }
+    func testUpcomingScheduleShowsThreeDaysAndExplicitRestDays() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let monday = calendar.date(from: DateComponents(year: 2026, month: 8, day: 24))!
+
+        let entries = UpcomingSchedule.entries(
+            from: monday,
+            calendar: calendar,
+            strongLifts: Program.strongLiftsDefault,
+            atg: nil
+        )
+
+        XCTAssertEqual(entries.count, 3)
+        XCTAssertEqual(entries.map { calendar.component(.weekday, from: $0.date) }, [2, 3, 4])
+        XCTAssertEqual(entries[0].kind, .workout)
+        XCTAssertEqual(entries[0].workoutNames, ["StrongLifts 5×5 • Workout A"])
+        XCTAssertEqual(entries[1].kind, .rest)
+        XCTAssertEqual(entries[1].workoutNames, [])
+        XCTAssertEqual(entries[2].kind, .workout)
+        XCTAssertEqual(entries[2].workoutNames, ["StrongLifts 5×5 • Workout B"])
+    }
+
+    func testUpcomingScheduleCombinesProgramsAndReturnsEmptyWithoutPrograms() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let monday = calendar.date(from: DateComponents(year: 2026, month: 8, day: 24))!
+        var atg = Program.atgDefault
+        atg.workouts[0].assignedDays = [.monday, .tuesday, .wednesday]
+
+        let entries = UpcomingSchedule.entries(from: monday, calendar: calendar, strongLifts: nil, atg: atg)
+        XCTAssertEqual(entries[0].workoutNames, ["ATG Basics (modest starter) • ATG Training"])
+        XCTAssertEqual(entries[1].kind, .workout)
+        XCTAssertEqual(UpcomingSchedule.entries(from: monday, calendar: calendar, strongLifts: nil, atg: nil), [])
+    }
+
     func testManualCreationUsesRequestedNameAndFreshStructureIDs() {
+        //
         let first = Program.new(kind: .strongLifts, name: "My 5x5")
         let second = Program.new(kind: .strongLifts, name: "Other")
         XCTAssertEqual(first.name, "My 5x5")

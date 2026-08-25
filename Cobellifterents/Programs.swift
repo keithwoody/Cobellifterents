@@ -249,6 +249,70 @@ enum ActiveProgramSelectionLogic {
     }
 }
 
+struct UpcomingScheduleEntry: Equatable, Identifiable {
+    enum Kind: Equatable { case workout, rest }
+
+    let date: Date
+    let kind: Kind
+    let workoutNames: [String]
+
+    var id: Date { date }
+}
+
+enum UpcomingSchedule {
+    /// Returns the next three calendar days, starting today, for the active programs.
+    /// A day without a scheduled workout is retained as an explicit rest entry.
+    static func entries(
+        from date: Date = Date(),
+        calendar: Calendar = .current,
+        strongLifts: Program?,
+        atg: Program?,
+        completedSessions: [WorkoutSession] = []
+    ) -> [UpcomingScheduleEntry] {
+        let start = calendar.startOfDay(for: date)
+        let strongProgram = strongLifts?.kind == .strongLifts ? strongLifts : nil
+        let atgProgram = atg?.kind == .atg ? atg : nil
+        guard strongProgram != nil || atgProgram != nil else { return [] }
+
+        var nextStrongIdentity = strongProgram.flatMap { program in
+            StrongLiftsProgramSelection.nextWorkout(in: program, after: completedSessions)?.identity
+        }
+        return (0..<3).compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { return nil }
+            let weekday = calendar.component(.weekday, from: day)
+            let trainingDay = TrainingDay.from(calendarWeekday: weekday)
+            var names: [String] = []
+
+            if let strongProgram, strongProgram.trainingDays.contains(trainingDay),
+               let identity = nextStrongIdentity,
+               let workout = strongProgram.workouts.first(where: { $0.identity == identity }) {
+                names.append(WorkoutDisplayNaming.combined(programName: strongProgram.name, workoutName: workout.name))
+                nextStrongIdentity = identity == "A" ? "B" : "A"
+            }
+            if let atgProgram {
+                names.append(contentsOf: atgProgram.workouts.filter { $0.assignedDays.contains(trainingDay) }.map {
+                    WorkoutDisplayNaming.combined(programName: atgProgram.name, workoutName: $0.name)
+                })
+            }
+            return UpcomingScheduleEntry(date: day, kind: names.isEmpty ? .rest : .workout, workoutNames: names)
+        }
+    }
+}
+
+private extension TrainingDay {
+    static func from(calendarWeekday: Int) -> TrainingDay {
+        switch calendarWeekday {
+        case 1: return .sunday
+        case 2: return .monday
+        case 3: return .tuesday
+        case 4: return .wednesday
+        case 5: return .thursday
+        case 6: return .friday
+        default: return .saturday
+        }
+    }
+}
+
 enum ProgramScheduleConflict {
     static func overlappingDays(strongLifts: Program, atg: Program) -> [TrainingDay] {
         guard strongLifts.kind == .strongLifts, atg.kind == .atg else { return [] }
