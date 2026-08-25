@@ -87,6 +87,36 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
         XCTAssertEqual(preview.workoutSessions.map(\.programAssignment), [.ankleAbilityZero, .unassignedAmbiguous])
     }
 
+    func testExplicitATGAssignmentSurvivesCommitAndRepositoryReload() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let suiteName = "ImportCommitterTests.explicitATGAssignment"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let repository = ProgramsRepository(defaults: defaults)
+        let csv = "workout_type,program,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+            "Strength Training,Ankle Ability Zero,ATG Pushup,2024-01-11,10,0,lbs,30,30000,source note\n" +
+            "Strength Training,Unknown Plan,ATG Split Squat,2024-01-12,5,0,lbs,0,0,\n"
+
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+        XCTAssertEqual(preview.workoutSessions.map(\.programAssignment), [.ankleAbilityZero, .unassignedAmbiguous])
+        _ = try ImportCommitter.commit(preview, into: context, programsRepository: repository)
+
+        let sessions = try context.fetch(FetchDescriptor<WorkoutSession>()).sorted { $0.startedAt < $1.startedAt }
+        let programsAfterCommit = repository.load()
+        let ankle = try XCTUnwrap(programsAfterCommit.first { $0.name == "Ankle Ability Zero" })
+        XCTAssertEqual(WorkoutProgramAssignment.program(for: sessions[0], in: programsAfterCommit), ankle)
+        XCTAssertEqual(sessions[0].programAssignmentID, ankle.id)
+        XCTAssertEqual(sessions[0].programAssignmentRawValue, "ankleAbilityZero")
+        XCTAssertEqual(sessions[0].programAssignmentEvidence, "Explicit ATG export field: Ankle Ability Zero")
+        XCTAssertNil(sessions[1].programAssignmentID)
+        XCTAssertNil(WorkoutProgramAssignment.program(for: sessions[1], in: programsAfterCommit))
+
+        let reloadedPrograms = ProgramsRepository(defaults: defaults).load()
+        XCTAssertEqual(WorkoutProgramPresentation.name(for: sessions[0], programs: reloadedPrograms), "Ankle Ability Zero")
+    }
+
     func testIndividualAssignmentPersistsWithoutChangingImportData() throws {
         let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])

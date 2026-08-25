@@ -117,7 +117,7 @@ final class ImportedRawRecord {
 }
 
 enum WorkoutImportMapper {
-    static func importedSession(from draft: WorkoutSessionDraft) -> WorkoutSession {
+    static func importedSession(from draft: WorkoutSessionDraft, programAssignmentID: UUID? = nil) -> WorkoutSession {
         let templateID: TemplateID
         if draft.sourceKind == .atgCSV {
             templateID = .atgImported
@@ -137,7 +137,7 @@ enum WorkoutImportMapper {
         session.notes = draft.notes
         session.programAssignmentRawValue = draft.programAssignment.rawValue
         session.programAssignmentEvidence = draft.programAssignmentEvidence
-        session.programAssignmentID = nil
+        session.programAssignmentID = programAssignmentID
         var exerciseOrderByID: [String: Int] = [:]
         session.sets = draft.sets.map { set in
             let displayOrder = exerciseOrderByID[set.exerciseID] ?? exerciseOrderByID.count
