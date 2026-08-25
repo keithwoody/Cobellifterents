@@ -6,6 +6,10 @@ enum HistoryFormatting {
         return Array(sessions.filter(\.isComplete).prefix(limit))
     }
 
+    static func shouldShowFullHistoryLink(for sessions: [WorkoutSession]) -> Bool {
+        !sessions.isEmpty
+    }
+
     static func weight(_ value: Double) -> String {
         "\(value.formatted(.number.precision(.fractionLength(value.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 1)))) lb"
     }

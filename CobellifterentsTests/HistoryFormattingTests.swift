@@ -40,4 +40,11 @@ final class HistoryFormattingTests: XCTestCase {
 
         XCTAssertTrue(HistoryFormatting.recentCompletedSessions(from: [session], limit: 0).isEmpty)
     }
+
+    func testFullHistoryLinkIsShownWhenOnlyIncompleteSessionsExist() {
+        let session = WorkoutSession(templateID: .strongLiftsA, templateName: "Workout A")
+
+        XCTAssertTrue(HistoryFormatting.shouldShowFullHistoryLink(for: [session]))
+        XCTAssertFalse(HistoryFormatting.shouldShowFullHistoryLink(for: []))
+    }
 }

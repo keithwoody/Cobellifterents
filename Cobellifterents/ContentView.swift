@@ -153,9 +153,11 @@ struct ContentView: View {
                                 }
                             }
                         }
+                    }
+                }
+                if HistoryFormatting.shouldShowFullHistoryLink(for: sessions) {
                     NavigationLink("View full history") {
                         WorkoutHistoryView()
-                    }
                     }
                 }
             }
