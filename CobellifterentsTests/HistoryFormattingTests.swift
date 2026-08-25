@@ -15,4 +15,29 @@ final class HistoryFormattingTests: XCTestCase {
         XCTAssertEqual(HistoryFormatting.sourceLabel("strongLiftsCSV"), "StrongLifts CSV")
         XCTAssertEqual(HistoryFormatting.sourceLabel("other"), "other")
     }
+
+    func testRecentCompletedSessionsLimitsToFiveAndExcludesInProgressSessions() {
+        var sessions: [WorkoutSession] = []
+        for index in 0..<7 {
+            let completedAt: Date? = index == 1 ? nil : Date(timeIntervalSince1970: Double(index + 100))
+            sessions.append(WorkoutSession(
+                templateID: .strongLiftsA,
+                templateName: "Workout A",
+                startedAt: Date(timeIntervalSince1970: Double(index)),
+                completedAt: completedAt
+            ))
+        }
+
+        let recent = HistoryFormatting.recentCompletedSessions(from: sessions)
+
+        XCTAssertEqual(recent.count, 5)
+        XCTAssertTrue(recent.allSatisfy { $0.isComplete })
+        XCTAssertFalse(recent.contains(where: { $0.startedAt == sessions[1].startedAt }))
+    }
+
+    func testRecentCompletedSessionsReturnsEmptyForNonPositiveLimit() {
+        let session = WorkoutSession(templateID: .strongLiftsA, templateName: "Workout A", completedAt: Date())
+
+        XCTAssertTrue(HistoryFormatting.recentCompletedSessions(from: [session], limit: 0).isEmpty)
+    }
 }

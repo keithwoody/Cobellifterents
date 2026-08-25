@@ -1,6 +1,11 @@
 import Foundation
 
 enum HistoryFormatting {
+    static func recentCompletedSessions(from sessions: [WorkoutSession], limit: Int = 5) -> [WorkoutSession] {
+        guard limit > 0 else { return [] }
+        return Array(sessions.filter(\.isComplete).prefix(limit))
+    }
+
     static func weight(_ value: Double) -> String {
         "\(value.formatted(.number.precision(.fractionLength(value.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 1)))) lb"
     }

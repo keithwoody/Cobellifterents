@@ -46,6 +46,10 @@ struct ContentView: View {
         )
     }
 
+    private var recentCompletedSessions: [WorkoutSession] {
+        HistoryFormatting.recentCompletedSessions(from: sessions)
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -120,10 +124,10 @@ struct ContentView: View {
             }
 
             Section("Recent history") {
-                if sessions.isEmpty {
+                if recentCompletedSessions.isEmpty {
                     ContentUnavailableView("No workouts yet", systemImage: "figure.strengthtraining.traditional", description: Text("Start Workout A to create the first StrongLifts-style log."))
                 } else {
-                    ForEach(sessions) { session in
+                    ForEach(recentCompletedSessions) { session in
                         NavigationLink {
                             WorkoutHistoryDetailView(session: session)
                         } label: {
@@ -149,6 +153,9 @@ struct ContentView: View {
                                 }
                             }
                         }
+                    NavigationLink("View full history") {
+                        WorkoutHistoryView()
+                    }
                     }
                 }
             }
@@ -177,6 +184,50 @@ struct ContentView: View {
     private func refreshPrograms() {
         programs = programsRepository.load()
         activeSelection = programsRepository.loadActiveSelection(for: programs)
+    }
+}
+
+private struct WorkoutHistoryRow: View {
+    let session: WorkoutSession
+
+    var body: some View {
+        NavigationLink {
+            WorkoutHistoryDetailView(session: session)
+        } label: {
+            VStack(alignment: .leading) {
+                Text(WorkoutDisplayNaming.displayName(for: session)).bold()
+                Text(session.startedAt, style: .date)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Text(session.isComplete ? "Complete" : "In progress")
+                        .font(.caption)
+                        .foregroundStyle(session.isComplete ? .green : .orange)
+                    if session.isImported {
+                        Text("Imported")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct WorkoutHistoryView: View {
+    @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var sessions: [WorkoutSession]
+
+    var body: some View {
+        List {
+            if sessions.isEmpty {
+                ContentUnavailableView("No workouts yet", systemImage: "figure.strengthtraining.traditional")
+            } else {
+                ForEach(sessions) { session in
+                    WorkoutHistoryRow(session: session)
+                }
+            }
+        }
+        .navigationTitle("Workout History")
     }
 }
 
