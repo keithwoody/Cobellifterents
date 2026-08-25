@@ -91,7 +91,7 @@ enum CSVWorkoutImporter {
         return ImportPreview(sourceKind: .strongLiftsCSV, rawRecords: rawRecords, workoutSessions: sessions, issues: issues)
     }
 
-    static func previewATGCSV(_ csv: String, sourceFileName: String) -> ImportPreview {
+    static func previewATGCSV(_ csv: String, sourceFileName: String, startDate: Date? = nil, endDate: Date? = nil) -> ImportPreview {
         let rows = CSVParser.parse(csv)
         guard let header = rows.first else {
             return ImportPreview(sourceKind: .atgCSV, rawRecords: [], workoutSessions: [], issues: [ImportIssue(rowNumber: 0, message: "CSV is empty")])
@@ -107,6 +107,16 @@ enum CSVWorkoutImporter {
             let rowNumber = index + 2
             let dateText = dict["date", default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
             let occurredAt = parseISODate(dateText)
+            guard let occurredAt else {
+                if !dateText.isEmpty {
+                    issues.append(ImportIssue(rowNumber: rowNumber, message: "Could not parse ATG date: \(dateText)"))
+                } else {
+                    issues.append(ImportIssue(rowNumber: rowNumber, message: "ATG row has no date; preserving raw provenance only"))
+                }
+                continue
+            }
+            if let startDate, occurredAt < startDate { continue }
+            if let endDate, occurredAt > endDate { continue }
             // Source row identity makes re-import idempotent and avoids silently
             // forking provenance when an export is edited in place.
             let rawID = stableID(["atg", sourceFileName, String(rowNumber)])
@@ -118,15 +128,6 @@ enum CSVWorkoutImporter {
                 rowJSON: JSONStableEncoder.encode(dict),
                 occurredAt: occurredAt
             ))
-
-            guard let occurredAt else {
-                if !dateText.isEmpty {
-                    issues.append(ImportIssue(rowNumber: rowNumber, message: "Could not parse ATG date: \(dateText)"))
-                } else {
-                    issues.append(ImportIssue(rowNumber: rowNumber, message: "ATG row has no date; preserving raw provenance only"))
-                }
-                continue
-            }
             let workoutType = dict["workout_type", default: "Strength Training"].trimmingCharacters(in: .whitespacesAndNewlines)
             let groupID = stableID(["atg-session", sourceFileName, ISODateOnly.string(from: occurredAt), workoutType])
             if grouped[groupID] == nil { groupOrder.append(groupID) }
@@ -166,7 +167,7 @@ enum CSVWorkoutImporter {
         }
         .sorted { $0.startedAt < $1.startedAt }
 
-        return ImportPreview(sourceKind: .atgCSV, rawRecords: rawRecords, workoutSessions: sessions, issues: issues)
+        return ImportPreview(sourceKind: .atgCSV, rawRecords: rawRecords, workoutSessions: ATGProgramPlanner.assignPrograms(to: sessions), issues: issues)
     }
 
     private static func inferATGProgram(from row: [String: String]) -> ImportProgramAssignment {

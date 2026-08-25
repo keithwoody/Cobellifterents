@@ -77,12 +77,12 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
         XCTAssertEqual(session.sets.first?.durationSeconds, 30)
     }
 
-    func testATGGeneratedProgramSignalsMissingProgramAssignment() {
+    func testATGGeneratedProgramsUseKnownPlaceholders() {
         let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
             "Strength Training,ATG Pushup,2024-01-11,10,0,lbs,30,30000,\n"
         let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
-        let inferred = ImportToProgramInference.infer(from: preview.workoutSessions, sourceKind: .atgCSV)
-        XCTAssertEqual(inferred?.program.name, "Imported ATG (Program assignment needed)")
-        XCTAssertEqual(preview.workoutSessions.first?.programAssignment, .unassignedAmbiguous)
+        let programs = ATGProgramPlanner.placeholderPrograms(from: preview.workoutSessions)
+        XCTAssertEqual(programs.map(\.name), ["Knee Ability Zero", "Ankle Ability Zero", "Back Ability Zero"])
+        XCTAssertEqual(preview.workoutSessions.first?.programAssignment, .kneeAbilityZero)
     }
 }

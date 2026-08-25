@@ -14,6 +14,10 @@ struct ImportView: View {
     @State private var commitSummary: ImportCommitSummary?
     @State private var isFileImporterPresented = false
     @State private var createOrUpdateProgram = true
+    @State private var filterByDate = false
+    @State private var startDate = Calendar.current.date(from: DateComponents(year: 2024, month: 1, day: 1)) ?? Date()
+    @State private var endDate = Date()
+    @State private var selectedCSV: String?
 
     var body: some View {
         List {
@@ -25,6 +29,13 @@ struct ImportView: View {
                 Button("Choose CSV") { isFileImporterPresented = true }
                 if let selectedFileName {
                     Text(selectedFileName).foregroundStyle(.secondary)
+                }
+                if selectedSourceKind == .atgCSV {
+                    Toggle("Limit import to date range", isOn: $filterByDate)
+                    if filterByDate {
+                        DatePicker("Start date", selection: $startDate, displayedComponents: .date)
+                        DatePicker("End date", selection: $endDate, in: startDate..., displayedComponents: .date)
+                    }
                 }
             }
 
@@ -108,6 +119,9 @@ struct ImportView: View {
             }
         }
         .navigationTitle("Import")
+        .onChange(of: startDate) { _, _ in rebuildATGPreview() }
+        .onChange(of: endDate) { _, _ in rebuildATGPreview() }
+        .onChange(of: filterByDate) { _, _ in rebuildATGPreview() }
         .fileImporter(
             isPresented: $isFileImporterPresented,
             allowedContentTypes: [.commaSeparatedText, .plainText, UTType(filenameExtension: "csv")!],
@@ -127,12 +141,13 @@ struct ImportView: View {
                 if didStartAccessing { url.stopAccessingSecurityScopedResource() }
             }
             let csv = try String(contentsOf: url, encoding: .utf8)
+            selectedCSV = csv
             selectedFileName = url.lastPathComponent
             switch selectedSourceKind {
             case .strongLiftsCSV:
                 preview = CSVWorkoutImporter.previewStrongLiftsCSV(csv, sourceFileName: url.lastPathComponent)
             case .atgCSV:
-                preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: url.lastPathComponent)
+                preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: url.lastPathComponent, startDate: filterByDate ? startDate : nil, endDate: filterByDate ? endDate : nil)
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -146,6 +161,11 @@ struct ImportView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func rebuildATGPreview() {
+        guard selectedSourceKind == .atgCSV, let selectedCSV, let selectedFileName else { return }
+        preview = CSVWorkoutImporter.previewATGCSV(selectedCSV, sourceFileName: selectedFileName, startDate: filterByDate ? startDate : nil, endDate: filterByDate ? Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) : nil)
     }
 }
 
