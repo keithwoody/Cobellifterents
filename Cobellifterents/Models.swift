@@ -51,6 +51,38 @@ enum StrongLiftsTemplates {
     }
 }
 
+struct ExerciseProgressionSetting: Codable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    var currentWeight: Double
+    var increment: Double
+    var deloadPercentage: Double
+    var failureFrequency: Int
+    var targetSets: Int
+    var targetReps: Int
+
+    enum CodingKeys: String, CodingKey { case id, name, currentWeight, increment, deloadPercentage, failureFrequency, targetSets, targetReps }
+    init(id: String, name: String, currentWeight: Double, increment: Double, deloadPercentage: Double, failureFrequency: Int, targetSets: Int = 5, targetReps: Int = 5) {
+        self.id = id; self.name = name; self.currentWeight = currentWeight; self.increment = increment; self.deloadPercentage = deloadPercentage; self.failureFrequency = failureFrequency; self.targetSets = targetSets; self.targetReps = targetReps
+    }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id); name = try values.decode(String.self, forKey: .name)
+        currentWeight = try values.decode(Double.self, forKey: .currentWeight); increment = try values.decode(Double.self, forKey: .increment)
+        deloadPercentage = try values.decode(Double.self, forKey: .deloadPercentage); failureFrequency = try values.decode(Int.self, forKey: .failureFrequency)
+        targetSets = try values.decodeIfPresent(Int.self, forKey: .targetSets) ?? 5; targetReps = try values.decodeIfPresent(Int.self, forKey: .targetReps) ?? 5
+    }
+
+    static let defaults: [ExerciseProgressionSetting] = [
+        .init(id: "squat", name: "Squat", currentWeight: 45, increment: 5, deloadPercentage: 10, failureFrequency: 3, targetSets: 5, targetReps: 5),
+        .init(id: "bench_press", name: "Bench Press", currentWeight: 45, increment: 5, deloadPercentage: 10, failureFrequency: 3, targetSets: 5, targetReps: 5),
+        .init(id: "barbell_row", name: "Barbell Row", currentWeight: 65, increment: 5, deloadPercentage: 10, failureFrequency: 3, targetSets: 5, targetReps: 5),
+        .init(id: "overhead_press", name: "Overhead Press", currentWeight: 45, increment: 5, deloadPercentage: 10, failureFrequency: 3, targetSets: 5, targetReps: 5),
+        .init(id: "deadlift", name: "Deadlift", currentWeight: 95, increment: 10, deloadPercentage: 10, failureFrequency: 3, targetSets: 1, targetReps: 5),
+        .init(id: "pull_up", name: "Pull-Up", currentWeight: 0, increment: 5, deloadPercentage: 10, failureFrequency: 3),
+    ]
+}
+
 struct ProgressionRule: Equatable {
     var increment: Double
     var deloadMultiplier: Double = 0.9
@@ -147,10 +179,10 @@ final class WorkoutSetRecord {
 }
 
 extension WorkoutSession {
-    static func seeded(from template: WorkoutTemplate, history: [WorkoutSession]) -> WorkoutSession {
+    static func seeded(from template: WorkoutTemplate, history: [WorkoutSession], settings: [ExerciseProgressionSetting]? = nil) -> WorkoutSession {
         let session = WorkoutSession(templateID: template.id, templateName: template.name)
         session.sets = template.exercises.enumerated().flatMap { exerciseIndex, exercise in
-            let nextWeight = WorkoutSession.nextWeight(for: exercise, history: history)
+            let nextWeight = WorkoutSession.nextWeight(for: exercise, history: history, settings: settings)
             return (1...exercise.targetSets).map { setNumber in
                 WorkoutSetRecord(
                     exerciseID: exercise.id,
@@ -165,7 +197,8 @@ extension WorkoutSession {
         return session
     }
 
-    private static func nextWeight(for exercise: ExerciseTemplate, history: [WorkoutSession]) -> Double {
+    private static func nextWeight(for exercise: ExerciseTemplate, history: [WorkoutSession], settings: [ExerciseProgressionSetting]?) -> Double {
+        let setting = settings?.first { $0.id == exercise.id || $0.name.caseInsensitiveCompare(exercise.name) == .orderedSame }
         let completedExerciseSessions = history
             .filter { $0.isComplete }
             .compactMap { session -> [WorkoutSetRecord]? in
@@ -180,8 +213,8 @@ extension WorkoutSession {
                 return leftDate > rightDate
             }
 
-        guard let latest = completedExerciseSessions.first else { return exercise.startingWeight }
-        let currentWeight = latest.first?.weight ?? exercise.startingWeight
+        guard let latest = completedExerciseSessions.first else { return setting?.currentWeight ?? exercise.startingWeight }
+        let currentWeight = setting?.currentWeight ?? latest.first?.weight ?? exercise.startingWeight
         let latestSucceeded = latest.allSatisfy { $0.isComplete && $0.completedReps >= $0.targetReps }
         let failures = completedExerciseSessions.prefix(while: { sets in
             !sets.allSatisfy { $0.isComplete && $0.completedReps >= $0.targetReps }
@@ -191,7 +224,12 @@ extension WorkoutSession {
             currentWeight: currentWeight,
             consecutiveFailures: failures,
             performance: ExercisePerformance(completedAllTargetReps: latestSucceeded),
-            rule: ProgressionRule(increment: exercise.increment, minimumWeight: exercise.startingWeight)
+            rule: ProgressionRule(
+                increment: setting?.increment ?? exercise.increment,
+                deloadMultiplier: setting.map { max(0, min(1, 1 - $0.deloadPercentage / 100)) } ?? 0.9,
+                failuresBeforeDeload: setting?.failureFrequency ?? 3,
+                minimumWeight: setting?.currentWeight ?? exercise.startingWeight
+            )
         )
     }
 }

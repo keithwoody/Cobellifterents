@@ -5,9 +5,29 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var sessions: [WorkoutSession]
     @State private var activeSession: WorkoutSession?
+    @State private var programs: [Program] = []
+    @State private var activeSelection = ActiveProgramSelection()
+    private let programsRepository = ProgramsRepository()
+    private let progressionSettingsRepository = ProgressionSettingsRepository()
+
+    private var activeStrongLiftsProgram: Program? {
+        programs.first { $0.id == activeSelection.strongLiftsID && $0.kind == .strongLifts && $0.isValid }
+    }
+
+    private var selectedProgramWorkout: ProgramWorkout? {
+        activeStrongLiftsProgram.flatMap { StrongLiftsProgramSelection.nextWorkout(in: $0, after: sessions) }
+    }
 
     private var nextTemplate: WorkoutTemplate {
-        StrongLiftsTemplates.template(after: sessions.first(where: { $0.isComplete })?.templateID)
+        if let selectedProgramWorkout, let activeStrongLiftsProgram,
+           let template = ProgramWorkoutConversion.template(from: selectedProgramWorkout, programName: activeStrongLiftsProgram.name) {
+            return template
+        }
+        return StrongLiftsTemplates.template(after: sessions.first(where: { $0.isComplete })?.templateID)
+    }
+
+    private var isEmptySelectedCustomWorkout: Bool {
+        HomeWorkoutLogic.shouldDisableStart(selectedProgramWorkout: selectedProgramWorkout, template: nextTemplate)
     }
 
     var body: some View {
@@ -26,6 +46,12 @@ struct ContentView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink("Import") { ImportView() }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink("Progression") { ProgressionSettingsView() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink("Programs") { ProgramsView() }
+                }
                 if activeSession != nil {
                     ToolbarItem(placement: .topBarLeading) {
                         Button("Cancel") { activeSession = nil }
@@ -34,7 +60,8 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            activeSession = sessions.first(where: { !$0.isComplete })
+            refreshPrograms()
+            activeSession = WorkoutSessionRecovery.resumableSession(from: sessions)
         }
     }
 
@@ -42,14 +69,26 @@ struct ContentView: View {
         List {
             Section("Next up") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(nextTemplate.name).font(.title2).bold()
-                    ForEach(nextTemplate.exercises) { exercise in
-                        Text("\(exercise.name): \(exercise.targetSets)x\(exercise.targetReps)")
-                            .foregroundStyle(.secondary)
+                    Text(WorkoutDisplayNaming.displayName(
+                        programName: activeStrongLiftsProgram?.name,
+                        workoutName: nextTemplate.name,
+                        templateID: nextTemplate.id
+                    ))
+                    .font(.title2)
+                    .bold()
+                    if isEmptySelectedCustomWorkout {
+                        Label("This workout has no exercises. Go to Programs to add exercises.", systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    } else {
+                        ForEach(nextTemplate.exercises) { exercise in
+                            Text("\(exercise.name): \(exercise.targetSets)x\(exercise.targetReps)")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
-                Button("Start \(nextTemplate.name)") { startWorkout() }
+                Button("Start Workout") { startWorkout() }
                     .buttonStyle(.borderedProminent)
+                    .disabled(isEmptySelectedCustomWorkout)
             }
 
             Section("Recent history") {
@@ -57,19 +96,23 @@ struct ContentView: View {
                     ContentUnavailableView("No workouts yet", systemImage: "figure.strengthtraining.traditional", description: Text("Start Workout A to create the first StrongLifts-style log."))
                 } else {
                     ForEach(sessions) { session in
-                        VStack(alignment: .leading) {
-                            Text(session.templateName).bold()
-                            Text(session.startedAt, style: .date)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            HStack {
-                                Text(session.isComplete ? "Complete" : "In progress")
+                        NavigationLink {
+                            WorkoutHistoryDetailView(session: session)
+                        } label: {
+                            VStack(alignment: .leading) {
+                                Text(WorkoutDisplayNaming.displayName(for: session)).bold()
+                                Text(session.startedAt, style: .date)
                                     .font(.caption)
-                                    .foregroundStyle(session.isComplete ? .green : .orange)
-                                if session.isImported {
-                                    Text("Imported")
+                                    .foregroundStyle(.secondary)
+                                HStack {
+                                    Text(session.isComplete ? "Complete" : "In progress")
                                         .font(.caption)
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(session.isComplete ? .green : .orange)
+                                    if session.isImported {
+                                        Text("Imported")
+                                            .font(.caption)
+                                            .foregroundStyle(.blue)
+                                    }
                                 }
                             }
                         }
@@ -77,10 +120,16 @@ struct ContentView: View {
                 }
             }
         }
+        .onAppear { refreshPrograms() }
     }
 
     private func startWorkout() {
-        let session = WorkoutSession.seeded(from: nextTemplate, history: sessions)
+        guard !isEmptySelectedCustomWorkout else { return }
+        let session = WorkoutSession.seeded(
+            from: nextTemplate,
+            history: sessions,
+            settings: progressionSettingsRepository.hasCustomSettings ? progressionSettingsRepository.load() : nil
+        )
         modelContext.insert(session)
         try? modelContext.save()
         activeSession = session
@@ -91,11 +140,114 @@ struct ContentView: View {
         try? modelContext.save()
         activeSession = nil
     }
+
+    private func refreshPrograms() {
+        programs = programsRepository.load()
+        activeSelection = programsRepository.loadActiveSelection(for: programs)
+    }
+}
+
+struct WorkoutHistoryDetailView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    let session: WorkoutSession
+    @State private var showingDeleteConfirmation = false
+
+    private var exerciseGroups: [(id: String, name: String, sets: [WorkoutSetRecord])] {
+        let templateOrder = Dictionary(
+            uniqueKeysWithValues: (session.templateID.flatMap { id in StrongLiftsTemplates.all.first { $0.id == id } }?.exercises ?? [])
+                .enumerated()
+                .map { ($0.element.id, $0.offset) }
+        )
+        return Dictionary(grouping: session.sets, by: \.exerciseID)
+            .compactMap { id, sets in
+                guard let first = sets.first else { return nil }
+                return (id, first.exerciseName, sets.sorted { $0.setNumber < $1.setNumber })
+            }
+            .sorted {
+                let leftOrder = templateOrder[$0.id] ?? $0.sets.compactMap(\.displayOrder).min() ?? Int.max
+                let rightOrder = templateOrder[$1.id] ?? $1.sets.compactMap(\.displayOrder).min() ?? Int.max
+                return leftOrder == rightOrder ? $0.name < $1.name : leftOrder < rightOrder
+            }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                LabeledContent("Status", value: session.isComplete ? "Complete" : "In progress")
+                LabeledContent("Started", value: session.startedAt.formatted(date: .abbreviated, time: .shortened))
+                if let completedAt = session.completedAt {
+                    LabeledContent("Finished", value: completedAt.formatted(date: .abbreviated, time: .shortened))
+                }
+                if let bodyWeight = session.bodyWeight {
+                    LabeledContent("Body weight", value: HistoryFormatting.weight(bodyWeight))
+                }
+            }
+
+            if session.isImported {
+                Section("Import source") {
+                    if let sourceKind = session.importSourceKindRawValue {
+                        LabeledContent("Source", value: HistoryFormatting.sourceLabel(sourceKind))
+                    }
+                    if let fileName = session.importSourceFileName {
+                        LabeledContent("File", value: fileName)
+                    }
+                    if let recordID = session.importSourceRecordID {
+                        LabeledContent("Record", value: recordID)
+                    }
+                }
+            }
+
+            ForEach(exerciseGroups, id: \.id) { group in
+                Section(group.name) {
+                    ForEach(group.sets) { set in
+                        HStack {
+                            Text("Set \(set.setNumber)")
+                            Spacer()
+                            Text(HistoryFormatting.setOutcome(completedReps: set.completedReps, targetReps: set.targetReps, weight: set.weight))
+                                .multilineTextAlignment(.trailing)
+                                .monospacedDigit()
+                            Image(systemName: set.isComplete ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(set.isComplete ? .green : .secondary)
+                        }
+                    }
+                }
+            }
+
+            if let notes = session.notes, !notes.isEmpty {
+                Section("Notes") { Text(notes) }
+            }
+        }
+        .navigationTitle(session.templateName)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Delete", role: .destructive) { showingDeleteConfirmation = true }
+            }
+        }
+        .confirmationDialog("Delete this workout?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete Workout", role: .destructive) {
+                deleteWorkout()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This removes the workout and all of its sets from history.")
+        }
+    }
+
+    private func deleteWorkout() {
+        for set in session.sets { modelContext.delete(set) }
+        modelContext.delete(session)
+        try? modelContext.save()
+        dismiss()
+    }
 }
 
 struct WorkoutLoggingView: View {
     @Bindable var session: WorkoutSession
     let onComplete: () -> Void
+    @State private var restStartedAt: Date?
+
+    private let restDuration = 90
 
     var groupedSets: [(exerciseID: String, name: String, displayOrder: Int, sets: [WorkoutSetRecord])] {
         let groups = Dictionary(grouping: session.sets, by: \.exerciseID)
@@ -121,10 +273,37 @@ struct WorkoutLoggingView: View {
                 }
             }
 
+            Section("Workout details") {
+                TextField("Body weight (lb)", text: bodyWeightBinding)
+                    .keyboardType(.decimalPad)
+                TextField("Workout notes", text: notesBinding, axis: .vertical)
+                    .lineLimit(2...4)
+            }
+
+            Section("Rest timer") {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    HStack {
+                        Label(restTimerLabel(at: context.date), systemImage: "timer")
+                            .font(.headline)
+                        Spacer()
+                        Button(restStartedAt == nil ? "Start" : "Restart") {
+                            restStartedAt = .now
+                        }
+                        .buttonStyle(.bordered)
+                        if restStartedAt != nil {
+                            Button("Clear") { restStartedAt = nil }
+                                .buttonStyle(.borderless)
+                        }
+                    }
+                }
+            }
+
             ForEach(groupedSets, id: \.exerciseID) { group in
                 Section(group.name) {
                     ForEach(group.sets) { set in
-                        StrongLiftsSetRow(set: set)
+                        StrongLiftsSetRow(set: set) {
+                            restStartedAt = .now
+                        }
                     }
                 }
             }
@@ -135,10 +314,37 @@ struct WorkoutLoggingView: View {
         }
         .navigationTitle(session.templateName)
     }
+
+    private var bodyWeightBinding: Binding<String> {
+        Binding(
+            get: {
+                guard let bodyWeight = session.bodyWeight else { return "" }
+                return bodyWeight.formatted(.number.precision(.fractionLength(0...1)))
+            },
+            set: { value in
+                session.bodyWeight = Double(value)
+            }
+        )
+    }
+
+    private var notesBinding: Binding<String> {
+        Binding(
+            get: { session.notes ?? "" },
+            set: { session.notes = $0 }
+        )
+    }
+
+    private func restTimerLabel(at date: Date) -> String {
+        guard let restStartedAt else { return "Ready for rest" }
+        let elapsed = max(0, Int(date.timeIntervalSince(restStartedAt)))
+        let remaining = max(0, restDuration - elapsed)
+        return remaining == 0 ? "Rest complete" : "Rest \(remaining)s"
+    }
 }
 
 struct StrongLiftsSetRow: View {
     @Bindable var set: WorkoutSetRecord
+    let onCompleted: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -146,12 +352,16 @@ struct StrongLiftsSetRow: View {
                 Button {
                     toggleComplete()
                 } label: {
-                    Label(set.isComplete ? "Complete" : "Mark complete", systemImage: set.isComplete ? "checkmark.circle.fill" : "circle")
-                        .labelStyle(.iconOnly)
-                        .font(.title3)
+                    ZStack {
+                        Circle()
+                            .fill(set.isComplete ? Color.green : Color.secondary.opacity(0.18))
+                        Text("\(set.setNumber)")
+                            .font(.headline)
+                            .foregroundStyle(set.isComplete ? .white : .primary)
+                    }
+                    .frame(width: 56, height: 56)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(set.isComplete ? .green : .secondary)
                 .accessibilityLabel(set.isComplete ? "Mark set incomplete" : "Mark set complete")
 
                 Text("Set \(set.setNumber)")
@@ -196,6 +406,9 @@ struct StrongLiftsSetRow: View {
         set.isComplete.toggle()
         if set.isComplete && set.completedReps == 0 {
             set.completedReps = set.targetReps
+        }
+        if set.isComplete {
+            onCompleted()
         }
     }
 }
