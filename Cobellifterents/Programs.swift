@@ -139,6 +139,35 @@ enum StrongLiftsScheduling {
     }
 }
 
+enum StrongLiftsProgramSelection {
+    static func nextWorkout(in program: Program, after sessions: [WorkoutSession]) -> ProgramWorkout? {
+        guard program.kind == .strongLifts, program.isValid else { return nil }
+        let lastIdentity = sessions.first(where: { $0.isComplete })?.templateID.flatMap { id in
+            id == .strongLiftsA ? "A" : (id == .strongLiftsB ? "B" : nil)
+        }
+        let identity = StrongLiftsScheduling.nextWorkoutIdentity(after: lastIdentity)
+        return program.workouts.first(where: { $0.identity == identity })
+    }
+}
+
+enum ProgramWorkoutConversion {
+    static func template(from workout: ProgramWorkout) -> WorkoutTemplate? {
+        guard let identity = workout.identity, let templateID = TemplateID(rawValue: "strongLifts\(identity)") else { return nil }
+        return WorkoutTemplate(id: templateID, name: workout.name, exercises: workout.exercises.map { exercise in
+            ExerciseTemplate(id: exercise.id.uuidString, name: exercise.name, targetSets: exercise.targetSets, targetReps: exercise.targetReps,
+                             startingWeight: defaultStartingWeight(for: exercise), increment: defaultIncrement(for: exercise))
+        })
+    }
+
+    private static func defaultStartingWeight(for exercise: ProgramExercise) -> Double {
+        ExerciseProgressionSetting.defaults.first { $0.name.caseInsensitiveCompare(exercise.name) == .orderedSame }?.currentWeight ?? 45
+    }
+
+    private static func defaultIncrement(for exercise: ProgramExercise) -> Double {
+        ExerciseProgressionSetting.defaults.first { $0.name.caseInsensitiveCompare(exercise.name) == .orderedSame }?.increment ?? 5
+    }
+}
+
 struct ProgramsEnvelope: Codable, Equatable { var version: Int; var programs: [Program] }
 
 enum ProgramNormalization {

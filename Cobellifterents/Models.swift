@@ -198,7 +198,7 @@ extension WorkoutSession {
     }
 
     private static func nextWeight(for exercise: ExerciseTemplate, history: [WorkoutSession], settings: [ExerciseProgressionSetting]?) -> Double {
-        let setting = settings?.first { $0.id == exercise.id }
+        let setting = settings?.first { $0.id == exercise.id || $0.name.caseInsensitiveCompare(exercise.name) == .orderedSame }
         let completedExerciseSessions = history
             .filter { $0.isComplete }
             .compactMap { session -> [WorkoutSetRecord]? in

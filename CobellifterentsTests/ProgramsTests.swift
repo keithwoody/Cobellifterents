@@ -161,6 +161,43 @@ final class ProgramsTests: XCTestCase {
         XCTAssertFalse(ProgramScheduleConflict.hasConflict(strongLifts: strong, atg: atg))
     }
 
+    func testProgramWorkoutConvertsToTemplateAndSeedsCustomSession() {
+        let workout = ProgramWorkout(identity: "A", name: "Custom A", exercises: [
+            ProgramExercise(name: "My Squat", targetSets: 2, targetReps: 8),
+            ProgramExercise(name: "Bench Press", targetSets: 1, targetReps: 10)
+        ])
+        let template = try! XCTUnwrap(ProgramWorkoutConversion.template(from: workout))
+        let session = WorkoutSession.seeded(from: template, history: [], settings: ExerciseProgressionSetting.defaults)
+
+        XCTAssertEqual(template.id, .strongLiftsA)
+        XCTAssertEqual(template.name, "Custom A")
+        XCTAssertEqual(session.sets.map(\.exerciseName), ["My Squat", "My Squat", "Bench Press"])
+        XCTAssertEqual(session.sets.map(\.targetReps), [8, 8, 10])
+        XCTAssertEqual(session.sets.map(\.displayOrder), [0, 0, 1])
+        XCTAssertEqual(session.sets.first?.weight, 45)
+    }
+
+    func testActiveStrongLiftsProgramSelectsNextABAfterCompletedHistory() {
+        var program = Program.new(kind: .strongLifts, name: "Custom StrongLifts")
+        program.workouts[0].name = "My A"
+        program.workouts[1].name = "My B"
+        let completedA = WorkoutSession(templateID: .strongLiftsA, templateName: "My A", completedAt: Date())
+
+        XCTAssertEqual(StrongLiftsProgramSelection.nextWorkout(in: program, after: [completedA])?.identity, "B")
+        XCTAssertEqual(StrongLiftsProgramSelection.nextWorkout(in: program, after: [])?.identity, "A")
+    }
+
+    func testProgramSelectionFallsBackToLegacyTemplateWhenNoActiveProgram() {
+        let completedA = WorkoutSession(templateID: .strongLiftsA, templateName: "Workout A", completedAt: Date())
+        let noProgram: Program? = nil
+        let template = noProgram.flatMap { program in
+            StrongLiftsProgramSelection.nextWorkout(in: program, after: [completedA]).flatMap(ProgramWorkoutConversion.template)
+        } ?? StrongLiftsTemplates.template(after: completedA.templateID)
+
+        XCTAssertEqual(template.name, "Workout B")
+        XCTAssertEqual(template.exercises.map(\.targetSets), [5, 5, 1])
+        XCTAssertEqual(template.exercises.map(\.name), ["Squat", "Overhead Press", "Deadlift"])
+    }
     func testManualCreationUsesRequestedNameAndFreshStructureIDs() {
         let first = Program.new(kind: .strongLifts, name: "My 5x5")
         let second = Program.new(kind: .strongLifts, name: "Other")

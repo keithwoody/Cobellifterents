@@ -5,10 +5,24 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var sessions: [WorkoutSession]
     @State private var activeSession: WorkoutSession?
+    @State private var programs: [Program] = []
+    @State private var activeSelection = ActiveProgramSelection()
+    private let programsRepository = ProgramsRepository()
     private let progressionSettingsRepository = ProgressionSettingsRepository()
 
+    private var activeStrongLiftsProgram: Program? {
+        programs.first { $0.id == activeSelection.strongLiftsID && $0.kind == .strongLifts && $0.isValid }
+    }
+
+    private var selectedProgramWorkout: ProgramWorkout? {
+        activeStrongLiftsProgram.flatMap { StrongLiftsProgramSelection.nextWorkout(in: $0, after: sessions) }
+    }
+
     private var nextTemplate: WorkoutTemplate {
-        StrongLiftsTemplates.template(after: sessions.first(where: { $0.isComplete })?.templateID)
+        if let selectedProgramWorkout, let template = ProgramWorkoutConversion.template(from: selectedProgramWorkout) {
+            return template
+        }
+        return StrongLiftsTemplates.template(after: sessions.first(where: { $0.isComplete })?.templateID)
     }
 
     var body: some View {
@@ -41,6 +55,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
+            refreshPrograms()
             activeSession = sessions.first(where: { !$0.isComplete })
         }
     }
@@ -49,6 +64,11 @@ struct ContentView: View {
         List {
             Section("Next up") {
                 VStack(alignment: .leading, spacing: 8) {
+                    if let activeStrongLiftsProgram {
+                        Text(activeStrongLiftsProgram.name)
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                    }
                     Text(nextTemplate.name).font(.title2).bold()
                     ForEach(nextTemplate.exercises) { exercise in
                         Text("\(exercise.name): \(exercise.targetSets)x\(exercise.targetReps)")
@@ -105,6 +125,11 @@ struct ContentView: View {
         session.completedAt = Date()
         try? modelContext.save()
         activeSession = nil
+    }
+
+    private func refreshPrograms() {
+        programs = programsRepository.load()
+        activeSelection = programsRepository.loadActiveSelection(for: programs)
     }
 }
 
