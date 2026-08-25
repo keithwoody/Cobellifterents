@@ -15,15 +15,38 @@ enum CSVWorkoutImporter {
         var issues: [ImportIssue] = []
         var rawRecords: [ImportedRawRecordDraft] = []
         var grouped: [String: [[String: String]]] = [:]
+        var inheritedMetadata: [String: String] = [:]
+        let groupingFields = ["Date (yyyy/mm/dd)", "Workout", "Workout Name", "Start Time (h:mm)"]
 
         for dict in dictionaries {
-            let dateText = dict["Date (yyyy/mm/dd)", default: ""]
-            let workoutNumber = dict["Workout", default: ""]
-            let workoutName = dict["Workout Name", default: "Imported Workout"]
-            let startTime = dict["Start Time (h:mm)", default: ""]
+            // StrongLifts exports the workout metadata either on every exercise row or
+            // only on the first row of a workout. Treat blank continuation cells as
+            // inherited metadata, while retaining the original dictionary in rawJSON.
+            var effective = dict
+            for field in groupingFields {
+                if let value = dict[field], !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    inheritedMetadata[field] = value
+                } else if let inherited = inheritedMetadata[field] {
+                    effective[field] = inherited
+                }
+            }
+            let dateText = effective["Date (yyyy/mm/dd)", default: ""]
+            let workoutNumber = effective["Workout", default: ""]
+            let workoutName = effective["Workout Name", default: "Imported Workout"]
+            let startTime = effective["Start Time (h:mm)", default: ""]
             let rowNumber = Int(dict["__rowNumber", default: "0"]) ?? 0
             let groupID = stableID(["stronglifts", sourceFileName, dateText, workoutNumber, workoutName, startTime])
-            let rawID = stableID([groupID, dict["Exercise", default: ""], String(rowNumber)])
+            // Keep raw-record identity tied to the source row's original metadata so
+            // re-import dedupe remains compatible with existing exports.
+            let rawGroupID = stableID([
+                "stronglifts",
+                sourceFileName,
+                dict["Date (yyyy/mm/dd)", default: ""],
+                dict["Workout", default: ""],
+                dict["Workout Name", default: "Imported Workout"],
+                dict["Start Time (h:mm)", default: ""]
+            ])
+            let rawID = stableID([rawGroupID, dict["Exercise", default: ""], String(rowNumber)])
             let occurredAt = parseStrongLiftsDate(dateText, timeText: startTime)
 
             rawRecords.append(ImportedRawRecordDraft(
@@ -39,7 +62,7 @@ enum CSVWorkoutImporter {
                 issues.append(ImportIssue(rowNumber: rowNumber, message: "Could not parse StrongLifts date/time: \(dateText) \(startTime)"))
                 continue
             }
-            grouped[groupID, default: []].append(dict)
+            grouped[groupID, default: []].append(effective)
         }
 
         let sessions = grouped.values.compactMap { rows -> WorkoutSessionDraft? in
