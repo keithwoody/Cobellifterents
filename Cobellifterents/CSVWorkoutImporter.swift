@@ -100,13 +100,16 @@ enum CSVWorkoutImporter {
         var issues: [ImportIssue] = []
         var rawRecords: [ImportedRawRecordDraft] = []
         var grouped: [String: [[String: String]]] = [:]
+        var groupOrder: [String] = []
 
         for (index, row) in rows.dropFirst().enumerated() {
             let dict = CSVParser.dictionary(header: header, row: row, rowNumber: index + 2)
             let rowNumber = index + 2
-            let dateText = dict["date", default: ""]
+            let dateText = dict["date", default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
             let occurredAt = parseISODate(dateText)
-            let rawID = stableID(["atg", sourceFileName, String(rowNumber), dict["exercise", default: ""], dateText, dict["repetitions", default: ""], dict["duration_seconds", default: ""], dict["note", default: ""]])
+            // Source row identity makes re-import idempotent and avoids silently
+            // forking provenance when an export is edited in place.
+            let rawID = stableID(["atg", sourceFileName, String(rowNumber)])
             rawRecords.append(ImportedRawRecordDraft(
                 sourceKind: .atgCSV,
                 sourceFileName: sourceFileName,
@@ -124,11 +127,14 @@ enum CSVWorkoutImporter {
                 }
                 continue
             }
-            let groupID = stableID(["atg-session", sourceFileName, ISODateOnly.string(from: occurredAt), dict["workout_type", default: "Strength Training"]])
+            let workoutType = dict["workout_type", default: "Strength Training"].trimmingCharacters(in: .whitespacesAndNewlines)
+            let groupID = stableID(["atg-session", sourceFileName, ISODateOnly.string(from: occurredAt), workoutType])
+            if grouped[groupID] == nil { groupOrder.append(groupID) }
             grouped[groupID, default: []].append(dict)
         }
 
-        let sessions = grouped.values.compactMap { rows -> WorkoutSessionDraft? in
+        let sessions = groupOrder.compactMap { groupID -> WorkoutSessionDraft? in
+            guard let rows = grouped[groupID] else { return nil }
             guard let first = rows.first, let date = parseISODate(first["date", default: ""]) else { return nil }
             let sourceRecordID = stableID(["atg-session", sourceFileName, ISODateOnly.string(from: date), first["workout_type", default: "Strength Training"]])
             let sets = rows.enumerated().map { offset, row in
@@ -139,8 +145,9 @@ enum CSVWorkoutImporter {
                     targetReps: Int(row["repetitions", default: ""]) ?? 0,
                     completedReps: Int(row["repetitions", default: ""]) ?? 0,
                     weight: Double(row["resistance", default: ""]) ?? 0,
-                    durationSeconds: Int(row["duration_seconds", default: ""]),
-                    note: row["note", default: ""]
+                    durationSeconds: Int(row["duration_seconds", default: ""]) ?? ((Double(row["duration_ms", default: ""]) ?? 0) > 0 ? Int((Double(row["duration_ms", default: ""]) ?? 0) / 1000) : nil),
+                    note: row["note", default: ""],
+                    resistanceUnit: row["resistance_unit"].flatMap { $0.isEmpty ? nil : $0 }
                 )
             }
             return WorkoutSessionDraft(
@@ -152,12 +159,35 @@ enum CSVWorkoutImporter {
                 completedAt: date,
                 bodyWeight: nil,
                 notes: rows.map { $0["note", default: ""] }.filter { !$0.isEmpty }.joined(separator: "\n"),
-                sets: sets
+                sets: sets,
+                programAssignment: inferATGProgram(from: first),
+                programAssignmentEvidence: atgProgramEvidence(from: first)
             )
         }
         .sorted { $0.startedAt < $1.startedAt }
 
         return ImportPreview(sourceKind: .atgCSV, rawRecords: rawRecords, workoutSessions: sessions, issues: issues)
+    }
+
+    private static func inferATGProgram(from row: [String: String]) -> ImportProgramAssignment {
+        guard let value = atgProgramValue(from: row) else { return .unassignedAmbiguous }
+        switch slug(value) {
+        case "knee_ability_zero": return .kneeAbilityZero
+        case "back_ability_zero": return .backAbilityZero
+        case "ankle_ability_zero": return .ankleAbilityZero
+        default: return .unassignedAmbiguous
+        }
+    }
+
+    private static func atgProgramValue(from row: [String: String]) -> String? {
+        for key in ["program", "program_name", "programName"] {
+            if let value = row[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty { return value }
+        }
+        return nil
+    }
+
+    private static func atgProgramEvidence(from row: [String: String]) -> String? {
+        atgProgramValue(from: row).map { "Explicit ATG export field: \($0)" }
     }
 
     private static func strongLiftsSets(from row: [String: String]) -> [WorkoutSetDraft] {

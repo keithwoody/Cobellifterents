@@ -4,6 +4,7 @@ import SwiftData
 enum TemplateID: String, Codable, CaseIterable, Identifiable {
     case strongLiftsA
     case strongLiftsB
+    case atgImported
 
     var id: String { rawValue }
 }
@@ -129,6 +130,8 @@ final class WorkoutSession {
     var importSourceRecordID: String?
     var bodyWeight: Double?
     var notes: String?
+    var programAssignmentRawValue: String?
+    var programAssignmentEvidence: String?
     @Relationship(deleteRule: .cascade, inverse: \WorkoutSetRecord.session) var sets: [WorkoutSetRecord]
 
     init(id: UUID = UUID(), templateID: TemplateID, templateName: String, startedAt: Date = Date(), completedAt: Date? = nil, sets: [WorkoutSetRecord] = []) {
@@ -142,6 +145,8 @@ final class WorkoutSession {
         self.importSourceRecordID = nil
         self.bodyWeight = nil
         self.notes = ""
+        self.programAssignmentRawValue = nil
+        self.programAssignmentEvidence = nil
         self.sets = sets
     }
 
@@ -161,6 +166,7 @@ final class WorkoutSetRecord {
     var weight: Double
     var durationSeconds: Int?
     var notes: String?
+    var resistanceUnit: String?
     var isComplete: Bool
     var session: WorkoutSession?
 
@@ -174,6 +180,7 @@ final class WorkoutSetRecord {
         self.weight = weight
         self.durationSeconds = nil
         self.notes = ""
+        self.resistanceUnit = nil
         self.isComplete = isComplete
     }
 }

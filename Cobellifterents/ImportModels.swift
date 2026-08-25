@@ -18,6 +18,22 @@ struct ImportPreview: Equatable {
     let issues: [ImportIssue]
 }
 
+enum ImportProgramAssignment: String, Codable, Equatable {
+    case unassignedAmbiguous
+    case kneeAbilityZero
+    case backAbilityZero
+    case ankleAbilityZero
+
+    var displayName: String {
+        switch self {
+        case .unassignedAmbiguous: return "Unassigned (program unclear)"
+        case .kneeAbilityZero: return "Knee Ability Zero"
+        case .backAbilityZero: return "Back Ability Zero"
+        case .ankleAbilityZero: return "Ankle Ability Zero"
+        }
+    }
+}
+
 struct ImportedRawRecordDraft: Equatable {
     let sourceKind: ImportSourceKind
     let sourceFileName: String
@@ -37,6 +53,22 @@ struct WorkoutSessionDraft: Equatable {
     let bodyWeight: Double?
     let notes: String
     let sets: [WorkoutSetDraft]
+    let programAssignment: ImportProgramAssignment
+    let programAssignmentEvidence: String?
+
+    init(sourceKind: ImportSourceKind, sourceFileName: String, sourceRecordID: String, templateName: String, startedAt: Date, completedAt: Date, bodyWeight: Double?, notes: String, sets: [WorkoutSetDraft], programAssignment: ImportProgramAssignment = .unassignedAmbiguous, programAssignmentEvidence: String? = nil) {
+        self.sourceKind = sourceKind
+        self.sourceFileName = sourceFileName
+        self.sourceRecordID = sourceRecordID
+        self.templateName = templateName
+        self.startedAt = startedAt
+        self.completedAt = completedAt
+        self.bodyWeight = bodyWeight
+        self.notes = notes
+        self.sets = sets
+        self.programAssignment = programAssignment
+        self.programAssignmentEvidence = programAssignmentEvidence
+    }
 }
 
 struct WorkoutSetDraft: Equatable {
@@ -48,6 +80,19 @@ struct WorkoutSetDraft: Equatable {
     let weight: Double
     let durationSeconds: Int?
     let note: String
+    let resistanceUnit: String?
+
+    init(exerciseID: String, exerciseName: String, setNumber: Int, targetReps: Int, completedReps: Int, weight: Double, durationSeconds: Int?, note: String, resistanceUnit: String? = nil) {
+        self.exerciseID = exerciseID
+        self.exerciseName = exerciseName
+        self.setNumber = setNumber
+        self.targetReps = targetReps
+        self.completedReps = completedReps
+        self.weight = weight
+        self.durationSeconds = durationSeconds
+        self.note = note
+        self.resistanceUnit = resistanceUnit
+    }
 }
 
 @Model
@@ -73,7 +118,12 @@ final class ImportedRawRecord {
 
 enum WorkoutImportMapper {
     static func importedSession(from draft: WorkoutSessionDraft) -> WorkoutSession {
-        let templateID: TemplateID = draft.templateName == "Workout B" ? .strongLiftsB : .strongLiftsA
+        let templateID: TemplateID
+        if draft.sourceKind == .atgCSV {
+            templateID = .atgImported
+        } else {
+            templateID = draft.templateName == "Workout B" ? .strongLiftsB : .strongLiftsA
+        }
         let session = WorkoutSession(
             templateID: templateID,
             templateName: draft.templateName,
@@ -85,6 +135,8 @@ enum WorkoutImportMapper {
         session.importSourceRecordID = draft.sourceRecordID
         session.bodyWeight = draft.bodyWeight
         session.notes = draft.notes
+        session.programAssignmentRawValue = draft.programAssignment.rawValue
+        session.programAssignmentEvidence = draft.programAssignmentEvidence
         var exerciseOrderByID: [String: Int] = [:]
         session.sets = draft.sets.map { set in
             let displayOrder = exerciseOrderByID[set.exerciseID] ?? exerciseOrderByID.count
@@ -101,6 +153,7 @@ enum WorkoutImportMapper {
             )
             record.durationSeconds = set.durationSeconds
             record.notes = set.note
+            record.resistanceUnit = set.resistanceUnit
             return record
         }
         return session

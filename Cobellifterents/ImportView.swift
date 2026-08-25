@@ -65,6 +65,11 @@ struct ImportView: View {
                         VStack(alignment: .leading) {
                             Text(session.templateName).bold()
                             Text(session.startedAt.formatted(date: .abbreviated, time: .shortened))
+                            if preview.sourceKind == .atgCSV {
+                                Text(session.programAssignment.displayName)
+                                    .font(.caption)
+                                    .foregroundStyle(session.programAssignment == .unassignedAmbiguous ? .orange : .secondary)
+                            }
                             Text("\(session.sets.count) sets")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)

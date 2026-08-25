@@ -36,11 +36,21 @@ Decision: imports should do both provenance preservation and native conversion.
 Current CSV observations:
 
 - StrongLifts file groups into dated A/B workout sessions and is suitable for native conversion.
-- ATG file contains many blank-date rows; those require provenance-only handling until we know whether dates are recoverable from another export or app context.
+- ATG file contains many blank-date rows; those remain provenance-only because dates and session boundaries must not be invented.
 
 ## Current milestone focus
 
-Focus StrongLifts workout tracking first. ATG import and ATG-specific workout features are deferred until the StrongLifts logging loop is usable day-to-day.
+Focus StrongLifts workout tracking first. ATG CSV import is implemented as a separate continuity slice; ATG-specific templates and workout features remain deferred.
+
+## ATG CSV import behavior
+
+- The existing Import preview/commit flow accepts the ATG CSV shape (`workout_type`, `exercise`, `date`, repetitions, resistance, duration, and note).
+- Every source row is retained as immutable `ImportedRawRecord` provenance, including source filename, row number, stable source record ID, original fields as stable JSON, and parsed occurrence date when available.
+- Rows with a valid `yyyy-MM-dd` date become editable native imported sessions. Rows are grouped only by exact date and `workout_type`; the export has no session identifier, so no finer boundary is inferred. Exercise/set order is first-seen CSV order within each group.
+- Blank or invalid dates remain provenance-only and appear as explicit preview issues. No dates or sessions are invented. Resistance units are preserved in raw JSON; native records currently have no unit field.
+- Stable IDs make repeated imports idempotent for the same source filename and row positions. Renamed or reordered exports are treated as different sources; cross-file reconciliation is out of scope.
+- Program assignment is evidence-based: explicit ATG program fields map to Knee Ability Zero, Back Ability Zero, or Ankle Ability Zero; this export has no such field, so imported sessions and the generated program are marked `Unassigned (program unclear)` / `Program assignment needed`. The user's recollection that the latest program was probably Ankle Ability Zero is intentionally not applied automatically.
+
 
 Implemented tracking/import baseline:
 

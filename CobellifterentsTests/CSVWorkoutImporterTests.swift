@@ -37,6 +37,33 @@ Strength Training,ATG Split Squat,2024-01-11,5,0,lbs,0,0,3x10 instead of 5x5
         XCTAssertEqual(preview.workoutSessions[0].sets.first?.exerciseName, "ATG Split Squat")
     }
 
+    func testATGImportPreservesOrderMetadataAndRejectsAmbiguousDates() {
+        let csv = "\u{feff}workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\r\n" +
+            "Strength Training,\"ATG Pushup\",2024-01-11,10,0,lbs,30,30000,\"slow tempo\"\r\n" +
+            "Strength Training,ATG Split Squat,2024-01-11,5,20,lbs,0,0,\r\n" +
+            "Strength Training,ATG Pushup,,8,0,lbs,20,20000,\r\n" +
+            "Strength Training,ATG Row,not-a-date,8,10,lbs,0,0,\r\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG-export.csv")
+        XCTAssertEqual(preview.rawRecords.count, 4)
+        XCTAssertEqual(preview.workoutSessions.count, 1)
+        XCTAssertEqual(preview.issues.map(\.rowNumber), [4, 5])
+        XCTAssertEqual(preview.workoutSessions[0].sets.map(\.exerciseName), ["ATG Pushup", "ATG Split Squat"])
+        XCTAssertEqual(preview.workoutSessions[0].sets[0].durationSeconds, 30)
+        XCTAssertEqual(preview.workoutSessions[0].sets[0].note, "slow tempo")
+        XCTAssertNil(preview.rawRecords[2].occurredAt)
+        XCTAssertTrue(preview.rawRecords[0].rowJSON.contains("slow tempo"))
+    }
+
+    func testATGSessionGroupingUsesDateAndWorkoutTypeWithoutInventingBoundaries() {
+        let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+            "Mobility,Move A,2024-01-11,1,,,,,\n" +
+            "Mobility,Move B,2024-01-11,2,,,,,\n" +
+            "Strength Training,Move C,2024-01-11,3,,,,,\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+        XCTAssertEqual(preview.workoutSessions.count, 2)
+        XCTAssertEqual(preview.workoutSessions.map { $0.sets.map(\.exerciseName) }, [["Move A", "Move B"], ["Move C"]])
+    }
+
     func testStrongLiftsImportHandlesExportBOMCRLFAndQuotedFields() throws {
         let csv = "\u{feff}Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Sets×Reps,Sets×Time,Top Set (Reps×LB),e1RM (LB),Reps,Volume (LB),Workout Volume (LB),Duration (hours),Start Time (h:mm),End Time (h:mm),Notes,Set 1 (Reps),Set 1 (LB),Set 2 (Reps),Set 2 (LB),Set 3 (Reps),Set 3 (LB),Set 4 (Reps),Set 4 (LB),Set 5 (Reps),Set 5 (LB)\r\n" +
         "2026/03/03,1,\"Workout A\",\"Quarantine\",175,\"Dumbbell Lunge\",5×12,,12×20,31.9,60,2100,9060.0,1.2789,10:02 AM,11:55 AM,\"\",12,20,12,20,12,17.5,12,15,12,15\r\n" +

@@ -12,7 +12,7 @@ enum ImportToProgramInference {
         let kind = sourceKind ?? drafts[0].sourceKind
         let isStrongLifts = kind == .strongLiftsCSV || drafts.contains { strongIdentity($0.templateName) != nil }
         let programKind: ProgramKind = isStrongLifts ? .strongLifts : .atg
-        let name = displayName(fileName: drafts[0].sourceFileName, kind: kind)
+        let name = displayName(fileName: drafts[0].sourceFileName, kind: kind, drafts: drafts)
         let sourceKey = "\(kind.rawValue):\(drafts[0].sourceFileName.lowercased())"
         var workouts: [ProgramWorkout] = []
         var inferredTrainingDays: [TrainingDay] = []
@@ -58,9 +58,15 @@ enum ImportToProgramInference {
         )
     }
 
-    static func displayName(fileName: String, kind: ImportSourceKind) -> String {
+    static func displayName(fileName: String, kind: ImportSourceKind, drafts: [WorkoutSessionDraft] = []) -> String {
         let base = (fileName as NSString).deletingPathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
-        return base.isEmpty ? "Imported \(kind == .strongLiftsCSV ? "StrongLifts" : "ATG") Program" : "Imported \(base)"
+        let importedName = base.isEmpty ? "Imported \(kind == .strongLiftsCSV ? "StrongLifts" : "ATG") Program" : "Imported \(base)"
+        guard kind == .atgCSV else { return importedName }
+        let assignments = Set(drafts.map(\.programAssignment))
+        if assignments.count == 1, let assignment = assignments.first, assignment != .unassignedAmbiguous {
+            return assignment.displayName
+        }
+        return "\(importedName) (Program assignment needed)"
     }
 
     private static func normalized(_ value: String) -> String { value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }

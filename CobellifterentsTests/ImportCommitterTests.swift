@@ -56,4 +56,33 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
 
         XCTAssertEqual(exerciseOrder, ["Dumbbell Lunge", "Dumbbell Bench Press", "Dumbbell Row"])
     }
+
+    func testATGCommitIsIdempotentAndUsesATGTemplateIdentity() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+            "Strength Training,ATG Pushup,2024-01-11,10,0,lbs,30,30000,\n" +
+            "Strength Training,ATG Split Squat,,5,0,lbs,0,0,\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+        let first = try ImportCommitter.commit(preview, into: context, createOrUpdateProgram: false)
+        let second = try ImportCommitter.commit(preview, into: context, createOrUpdateProgram: false)
+        XCTAssertEqual(first.insertedRawRecords, 2)
+        XCTAssertEqual(first.insertedWorkoutSessions, 1)
+        XCTAssertEqual(second.insertedRawRecords, 0)
+        XCTAssertEqual(second.insertedWorkoutSessions, 0)
+        let session = try XCTUnwrap(context.fetch(FetchDescriptor<WorkoutSession>()).first)
+        XCTAssertEqual(session.templateID, .atgImported)
+        XCTAssertEqual(session.importSourceFileName, "ATG.csv")
+        XCTAssertEqual(session.sets.first?.durationSeconds, 30)
+    }
+
+    func testATGGeneratedProgramSignalsMissingProgramAssignment() {
+        let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+            "Strength Training,ATG Pushup,2024-01-11,10,0,lbs,30,30000,\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+        let inferred = ImportToProgramInference.infer(from: preview.workoutSessions, sourceKind: .atgCSV)
+        XCTAssertEqual(inferred?.program.name, "Imported ATG (Program assignment needed)")
+        XCTAssertEqual(preview.workoutSessions.first?.programAssignment, .unassignedAmbiguous)
+    }
 }
