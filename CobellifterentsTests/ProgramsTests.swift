@@ -199,11 +199,11 @@ final class ProgramsTests: XCTestCase {
             ProgramExercise(name: "My Squat", targetSets: 2, targetReps: 8),
             ProgramExercise(name: "Bench Press", targetSets: 1, targetReps: 10)
         ])
-        let template = try! XCTUnwrap(ProgramWorkoutConversion.template(from: workout))
+        let template = try! XCTUnwrap(ProgramWorkoutConversion.template(from: workout, programName: "My StrongLifts"))
         let session = WorkoutSession.seeded(from: template, history: [], settings: ExerciseProgressionSetting.defaults)
 
         XCTAssertEqual(template.id, .strongLiftsA)
-        XCTAssertEqual(template.name, "Custom A")
+        XCTAssertEqual(template.name, "My StrongLifts • Custom A")
         XCTAssertEqual(session.sets.map(\.exerciseName), ["My Squat", "My Squat", "Bench Press"])
         XCTAssertEqual(session.sets.map(\.targetReps), [8, 8, 10])
         XCTAssertEqual(session.sets.map(\.displayOrder), [0, 0, 1])

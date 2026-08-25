@@ -19,7 +19,8 @@ struct ContentView: View {
     }
 
     private var nextTemplate: WorkoutTemplate {
-        if let selectedProgramWorkout, let template = ProgramWorkoutConversion.template(from: selectedProgramWorkout) {
+        if let selectedProgramWorkout, let activeStrongLiftsProgram,
+           let template = ProgramWorkoutConversion.template(from: selectedProgramWorkout, programName: activeStrongLiftsProgram.name) {
             return template
         }
         return StrongLiftsTemplates.template(after: sessions.first(where: { $0.isComplete })?.templateID)
@@ -68,12 +69,13 @@ struct ContentView: View {
         List {
             Section("Next up") {
                 VStack(alignment: .leading, spacing: 8) {
-                    if let activeStrongLiftsProgram {
-                        Text(activeStrongLiftsProgram.name)
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Text(nextTemplate.name).font(.title2).bold()
+                    Text(WorkoutDisplayNaming.displayName(
+                        programName: activeStrongLiftsProgram?.name,
+                        workoutName: nextTemplate.name,
+                        templateID: nextTemplate.id
+                    ))
+                    .font(.title2)
+                    .bold()
                     if isEmptySelectedCustomWorkout {
                         Label("This workout has no exercises. Go to Programs to add exercises.", systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.orange)
@@ -84,7 +86,7 @@ struct ContentView: View {
                         }
                     }
                 }
-                Button("Start \(nextTemplate.name)") { startWorkout() }
+                Button("Start \(WorkoutDisplayNaming.displayName(programName: activeStrongLiftsProgram?.name, workoutName: nextTemplate.name, templateID: nextTemplate.id))") { startWorkout() }
                     .buttonStyle(.borderedProminent)
                     .disabled(isEmptySelectedCustomWorkout)
             }
@@ -98,7 +100,7 @@ struct ContentView: View {
                             WorkoutHistoryDetailView(session: session)
                         } label: {
                             VStack(alignment: .leading) {
-                                Text(session.templateName).bold()
+                                Text(WorkoutDisplayNaming.displayName(for: session)).bold()
                                 Text(session.startedAt, style: .date)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)

@@ -152,8 +152,13 @@ enum StrongLiftsProgramSelection {
 
 enum ProgramWorkoutConversion {
     static func template(from workout: ProgramWorkout) -> WorkoutTemplate? {
+        template(from: workout, programName: nil)
+    }
+
+    static func template(from workout: ProgramWorkout, programName: String?) -> WorkoutTemplate? {
         guard let identity = workout.identity, let templateID = TemplateID(rawValue: "strongLifts\(identity)") else { return nil }
-        return WorkoutTemplate(id: templateID, name: workout.name, exercises: workout.exercises.map { exercise in
+        let displayName = programName.map { WorkoutDisplayNaming.combined(programName: $0, workoutName: workout.name) } ?? workout.name
+        return WorkoutTemplate(id: templateID, name: displayName, exercises: workout.exercises.map { exercise in
             ExerciseTemplate(id: exercise.id.uuidString, name: exercise.name, targetSets: exercise.targetSets, targetReps: exercise.targetReps,
                              startingWeight: defaultStartingWeight(for: exercise), increment: defaultIncrement(for: exercise))
         })
