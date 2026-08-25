@@ -110,29 +110,42 @@ struct ProgramDetailView: View {
     let program: Program
     let onSave: (Program) -> Void
     @State private var editing = false
+    @State private var displayedProgram: Program
+
+    init(program: Program, onSave: @escaping (Program) -> Void) {
+        self.program = program
+        self.onSave = onSave
+        _displayedProgram = State(initialValue: program)
+    }
 
     var body: some View {
         List {
             Section {
-                Text(program.kind == .atg ? "A modest 3–5 day starter program. This app does not provide full ATG mobility logging." : "StrongLifts preserves A/B workout identity and alternation.")
+                Text(displayedProgram.kind == .atg ? "A modest 3–5 day starter program. This app does not provide full ATG mobility logging." : "StrongLifts preserves A/B workout identity and alternation.")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
-            ForEach(program.workouts) { workout in
+            ForEach(displayedProgram.workouts) { workout in
                 Section(workout.name) {
-                    if program.kind == .atg && !workout.assignedDays.isEmpty { Text(workout.assignedDays.map(\.shortName).joined(separator: " • ")).foregroundStyle(.secondary) }
+                    if displayedProgram.kind == .atg && !workout.assignedDays.isEmpty { Text(workout.assignedDays.map(\.shortName).joined(separator: " • ")).foregroundStyle(.secondary) }
                     ForEach(workout.exercises) { exercise in
                         HStack { Text(exercise.name); Spacer(); Text("\(exercise.targetSets) × \(exercise.targetReps)").foregroundStyle(.secondary) }
                     }
                 }
             }
-            if program.kind == .strongLifts {
-                Section("Training days") { Text(program.trainingDays.map(\.shortName).joined(separator: " • ")) }
+            if displayedProgram.kind == .strongLifts {
+                Section("Training days") { Text(displayedProgram.trainingDays.map(\.shortName).joined(separator: " • ")) }
             }
-            if let error = program.validationError { Text(validationMessage(error)).foregroundStyle(.red) }
+            if let error = displayedProgram.validationError { Text(validationMessage(error)).foregroundStyle(.red) }
         }
-        .navigationTitle(program.name)
+        .navigationTitle(displayedProgram.name)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Edit") { editing = true } } }
-        .sheet(isPresented: $editing) { ProgramEditorView(program: program, onSave: { onSave($0); editing = false }) }
+        .sheet(isPresented: $editing) {
+            ProgramEditorView(program: displayedProgram, onSave: { savedProgram in
+                displayedProgram = savedProgram
+                onSave(savedProgram)
+                editing = false
+            })
+        }
     }
 
     private func validationMessage(_ error: ProgramValidationError) -> String {

@@ -32,6 +32,24 @@ final class ProgramsTests: XCTestCase {
         XCTAssertEqual(repository.load(), Program.defaults)
     }
 
+    func testRepositoryPersistsNewStrongLiftsExerciseAcrossSaveAndReload() {
+        let suite = "ProgramsEditorPersistenceTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let repository = ProgramsRepository(defaults: defaults)
+        var edited = Program.strongLiftsDefault
+        edited.addExercise(to: 0)
+        edited.workouts[0].exercises[3].name = "Pull-Up"
+        let selection = ActiveProgramSelection(strongLiftsID: edited.id)
+
+        repository.save([edited])
+        repository.saveActiveSelection(selection)
+
+        let reloaded = try! XCTUnwrap(repository.load().first)
+        XCTAssertEqual(reloaded.workouts[0].exercises.map(\.name), ["Squat", "Bench Press", "Barbell Row", "Pull-Up"])
+        XCTAssertEqual(repository.loadActiveSelection(for: [reloaded]).strongLiftsID, edited.id)
+    }
+
     func testStrongLiftsNormalizationRepairsOneSidedProgramAndPreservesExistingWorkout() {
         let existing = ProgramWorkout(id: UUID(), identity: "A", name: "My A",
                                       exercises: [ProgramExercise(name: "Custom Lift", targetSets: 4, targetReps: 6)],
