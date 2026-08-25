@@ -83,6 +83,6 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
         let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
         let programs = ATGProgramPlanner.placeholderPrograms(from: preview.workoutSessions)
         XCTAssertEqual(programs.map(\.name), ["Knee Ability Zero", "Ankle Ability Zero", "Back Ability Zero"])
-        XCTAssertEqual(preview.workoutSessions.first?.programAssignment, .kneeAbilityZero)
+        XCTAssertEqual(preview.workoutSessions.first?.programAssignment, .backAbilityZero)
     }
 }

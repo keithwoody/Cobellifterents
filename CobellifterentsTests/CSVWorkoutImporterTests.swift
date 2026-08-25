@@ -127,6 +127,41 @@ Strength Training,ATG Split Squat,2024-01-11,5,0,lbs,0,0,3x10 instead of 5x5
         XCTAssertEqual(inferred.program.workouts.flatMap { $0.exercises }.map(\.targetReps), Array(repeating: 5, count: 8))
     }
 
+    func testATGImportPreservesAllRowsWhenNativeSessionDateRangeIsApplied() {
+        let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+            "Strength Training,Before,2024-01-10,1,,,,,\n" +
+            "Strength Training,In Range,2024-01-11,2,,,,,\n" +
+            "Strength Training,After,2024-01-13,3,,,,,\n" +
+            "Strength Training,Blank,,4,,,,,\n" +
+            "Strength Training,Invalid,not-a-date,5,,,,,\n"
+        let start = ISODateOnly.date(from: "2024-01-11")!
+        let end = ISODateOnly.date(from: "2024-01-12")!
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv", startDate: start, endDate: end)
+
+        XCTAssertEqual(preview.rawRecords.count, 5)
+        XCTAssertEqual(preview.rawRecords.map(\.sourceRowNumber), [2, 3, 4, 5, 6])
+        XCTAssertEqual(preview.rawRecords.map { $0.occurredAt != nil }, [true, true, true, false, false])
+        XCTAssertEqual(preview.workoutSessions.count, 1)
+        XCTAssertEqual(preview.workoutSessions[0].sets.map(\.exerciseName), ["In Range"])
+        XCTAssertEqual(preview.issues.map(\.rowNumber), [5, 6])
+    }
+
+    func testATGProgramAssignmentUsesBackForLatestSevenDaysAndWeekdayChangeForAnkle() {
+        let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+            "Strength Training,Monday Original,2024-01-01,1,,,,,\n" +
+            "Strength Training,Tuesday Stable,2024-01-02,1,,,,,\n" +
+            "Strength Training,Monday Changed,2024-01-08,1,,,,,\n" +
+            "Strength Training,Latest,2024-01-20,1,,,,,\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+        let assignments = Dictionary(uniqueKeysWithValues: preview.workoutSessions.map { (ISODateOnly.string(from: $0.startedAt), $0.programAssignment) })
+
+        XCTAssertEqual(assignments["2024-01-01"], .kneeAbilityZero)
+        XCTAssertEqual(assignments["2024-01-02"], .kneeAbilityZero)
+        XCTAssertEqual(assignments["2024-01-08"], .ankleAbilityZero)
+        XCTAssertEqual(assignments["2024-01-20"], .backAbilityZero)
+        XCTAssertTrue(preview.workoutSessions.allSatisfy { $0.programAssignmentEvidence?.contains("latest seven days") == true })
+    }
+
     func testStableIDsAreDeterministicForDedupe() {
         XCTAssertEqual(
             CSVWorkoutImporter.stableID(["a", "b", "c"]),

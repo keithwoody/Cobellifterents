@@ -107,6 +107,18 @@ enum CSVWorkoutImporter {
             let rowNumber = index + 2
             let dateText = dict["date", default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
             let occurredAt = parseISODate(dateText)
+            // Provenance is independent of whether a row can be converted into a
+            // native session. Retain every source row before validating its date or
+            // applying the optional native-session range.
+            let rawID = stableID(["atg", sourceFileName, String(rowNumber)])
+            rawRecords.append(ImportedRawRecordDraft(
+                sourceKind: .atgCSV,
+                sourceFileName: sourceFileName,
+                sourceRowNumber: rowNumber,
+                sourceRecordID: rawID,
+                rowJSON: JSONStableEncoder.encode(dict),
+                occurredAt: occurredAt
+            ))
             guard let occurredAt else {
                 if !dateText.isEmpty {
                     issues.append(ImportIssue(rowNumber: rowNumber, message: "Could not parse ATG date: \(dateText)"))
@@ -117,17 +129,6 @@ enum CSVWorkoutImporter {
             }
             if let startDate, occurredAt < startDate { continue }
             if let endDate, occurredAt > endDate { continue }
-            // Source row identity makes re-import idempotent and avoids silently
-            // forking provenance when an export is edited in place.
-            let rawID = stableID(["atg", sourceFileName, String(rowNumber)])
-            rawRecords.append(ImportedRawRecordDraft(
-                sourceKind: .atgCSV,
-                sourceFileName: sourceFileName,
-                sourceRowNumber: rowNumber,
-                sourceRecordID: rawID,
-                rowJSON: JSONStableEncoder.encode(dict),
-                occurredAt: occurredAt
-            ))
             let workoutType = dict["workout_type", default: "Strength Training"].trimmingCharacters(in: .whitespacesAndNewlines)
             let groupID = stableID(["atg-session", sourceFileName, ISODateOnly.string(from: occurredAt), workoutType])
             if grouped[groupID] == nil { groupOrder.append(groupID) }
