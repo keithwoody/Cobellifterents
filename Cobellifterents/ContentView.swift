@@ -301,12 +301,14 @@ struct WorkoutHistoryDetailView: View {
             }
 
             ForEach(exerciseGroups, id: \.id) { group in
-                Section(group.name) {
+                let supersetLabel = group.sets.first?.supersetGroupID.map { "Superset \($0) · " } ?? ""
+                let roundsLabel = group.sets.compactMap(\.totalRounds).max().map { " · \($0) rounds" } ?? ""
+                Section(supersetLabel + group.name + roundsLabel) {
                     ForEach(group.sets) { set in
                         HStack {
-                            Text("Set \(set.setNumber)")
+                            Text(set.roundNumber.map { "Round \($0)" } ?? "Set \(set.setNumber)")
                             Spacer()
-                            Text(HistoryFormatting.setOutcome(completedReps: set.completedReps, targetReps: set.targetReps, weight: set.weight))
+                            Text(HistoryFormatting.setOutcome(set: set))
                                 .multilineTextAlignment(.trailing)
                                 .monospacedDigit()
                             Image(systemName: set.isComplete ? "checkmark.circle.fill" : "circle")

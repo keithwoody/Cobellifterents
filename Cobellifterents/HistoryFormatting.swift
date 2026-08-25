@@ -18,6 +18,14 @@ enum HistoryFormatting {
         "\(completedReps)/\(targetReps) reps · \(self.weight(weight))"
     }
 
+    static func setOutcome(set: WorkoutSetRecord) -> String {
+        if let duration = set.durationSeconds {
+            return "\(duration) sec" + (set.weightProvided == true ? " · \(weight(set.weight))" : "")
+        }
+        let reps = set.repsProvided == true ? "\(set.completedReps)/\(set.targetReps) reps" : "No reps"
+        return reps + (set.weightProvided == true ? " · \(weight(set.weight))" : "")
+    }
+
     static func sourceLabel(_ rawValue: String) -> String {
         switch rawValue {
         case "strongLiftsCSV": return "StrongLifts CSV"

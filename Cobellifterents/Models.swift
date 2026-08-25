@@ -177,6 +177,11 @@ final class WorkoutSetRecord {
     var durationSeconds: Int?
     var notes: String?
     var resistanceUnit: String?
+    var weightProvided: Bool?
+    var repsProvided: Bool?
+    var supersetGroupID: String?
+    var roundNumber: Int?
+    var totalRounds: Int?
     var isComplete: Bool
     var session: WorkoutSession?
 
@@ -191,6 +196,11 @@ final class WorkoutSetRecord {
         self.durationSeconds = nil
         self.notes = ""
         self.resistanceUnit = nil
+        self.weightProvided = false
+        self.repsProvided = false
+        self.supersetGroupID = nil
+        self.roundNumber = nil
+        self.totalRounds = nil
         self.isComplete = isComplete
     }
 }

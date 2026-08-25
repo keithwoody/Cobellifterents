@@ -81,8 +81,13 @@ struct WorkoutSetDraft: Equatable {
     let durationSeconds: Int?
     let note: String
     let resistanceUnit: String?
+    let weightProvided: Bool
+    let repsProvided: Bool
+    let supersetGroupID: String?
+    let roundNumber: Int?
+    let totalRounds: Int?
 
-    init(exerciseID: String, exerciseName: String, setNumber: Int, targetReps: Int, completedReps: Int, weight: Double, durationSeconds: Int?, note: String, resistanceUnit: String? = nil) {
+    init(exerciseID: String, exerciseName: String, setNumber: Int, targetReps: Int, completedReps: Int, weight: Double, durationSeconds: Int?, note: String, resistanceUnit: String? = nil, weightProvided: Bool = false, repsProvided: Bool = false, supersetGroupID: String? = nil, roundNumber: Int? = nil, totalRounds: Int? = nil) {
         self.exerciseID = exerciseID
         self.exerciseName = exerciseName
         self.setNumber = setNumber
@@ -92,6 +97,11 @@ struct WorkoutSetDraft: Equatable {
         self.durationSeconds = durationSeconds
         self.note = note
         self.resistanceUnit = resistanceUnit
+        self.weightProvided = weightProvided
+        self.repsProvided = repsProvided
+        self.supersetGroupID = supersetGroupID
+        self.roundNumber = roundNumber
+        self.totalRounds = totalRounds
     }
 }
 
@@ -155,6 +165,11 @@ enum WorkoutImportMapper {
             record.durationSeconds = set.durationSeconds
             record.notes = set.note
             record.resistanceUnit = set.resistanceUnit
+            record.weightProvided = set.weightProvided
+            record.repsProvided = set.repsProvided
+            record.supersetGroupID = set.supersetGroupID
+            record.roundNumber = set.roundNumber
+            record.totalRounds = set.totalRounds
             return record
         }
         return session

@@ -191,6 +191,25 @@ Strength Training,ATG Split Squat,2024-01-11,5,0,lbs,0,0,3x10 instead of 5x5
         XCTAssertEqual(preview.workoutSessions[2].programAssignmentEvidence, "Explicit ATG export field: Unknown Plan")
     }
 
+    func testATGImportSupportsTimeOnlyRowsAndExplicitRounds() {
+        let csv = "workout_type,exercise,date,repetitions,resistance,duration_minutes,superset,rounds,round,note\n" +
+            "Mobility,Walk Backwards,2024-01-11,,,5,Tibialis + Calf,2,1,\n" +
+            "Mobility,Calf Raise,2024-01-11,10,,0,Tibialis + Calf,2,1,\n" +
+            "Mobility,Split Squat,2024-01-11,,,45,,,1,hold\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+        let sets = preview.workoutSessions[0].sets
+        XCTAssertEqual(sets[0].durationSeconds, 300)
+        XCTAssertFalse(sets[0].weightProvided == true)
+        XCTAssertFalse(sets[0].repsProvided == true)
+        XCTAssertEqual(sets[0].supersetGroupID, "tibialis_calf")
+        XCTAssertEqual(sets[0].totalRounds, 2)
+        XCTAssertEqual(sets[0].roundNumber, 1)
+        XCTAssertEqual(sets[1].targetReps, 10)
+        XCTAssertTrue(sets[1].repsProvided)
+        XCTAssertEqual(preview.workoutSessions[0].sets[2].durationSeconds, 2700)
+        XCTAssertTrue(preview.rawRecords[0].rowJSON.contains("duration_minutes"))
+    }
+
     func testStableIDsAreDeterministicForDedupe() {
         XCTAssertEqual(
             CSVWorkoutImporter.stableID(["a", "b", "c"]),

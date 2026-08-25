@@ -147,16 +147,27 @@ enum CSVWorkoutImporter {
             guard let first = rows.first, let date = parseISODate(first["date", default: ""]) else { return nil }
             let sourceRecordID = stableID(["atg-session", sourceFileName, ISODateOnly.string(from: date), first["workout_type", default: "Strength Training"]])
             let sets = rows.enumerated().map { offset, row in
-                WorkoutSetDraft(
-                    exerciseID: slug(row["exercise", default: "exercise"]),
-                    exerciseName: row["exercise", default: "Exercise"],
+                let exerciseName = row["exercise", default: "Exercise"].trimmingCharacters(in: .whitespacesAndNewlines)
+                let repsText = row["repetitions", default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+                let resistanceText = row["resistance", default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+                let groupValue = atgValue(from: row, keys: ["superset", "superset_id", "superset_group", "circuit", "circuit_id", "group"])
+                let roundsText = atgValue(from: row, keys: ["rounds", "round_count", "total_rounds", "circuit_rounds"])
+                let roundText = atgValue(from: row, keys: ["round", "round_number", "circuit_round"])
+                return WorkoutSetDraft(
+                    exerciseID: slug(exerciseName),
+                    exerciseName: exerciseName,
                     setNumber: offset + 1,
-                    targetReps: Int(row["repetitions", default: ""]) ?? 0,
-                    completedReps: Int(row["repetitions", default: ""]) ?? 0,
-                    weight: Double(row["resistance", default: ""]) ?? 0,
-                    durationSeconds: Int(row["duration_seconds", default: ""]) ?? ((Double(row["duration_ms", default: ""]) ?? 0) > 0 ? Int((Double(row["duration_ms", default: ""]) ?? 0) / 1000) : nil),
+                    targetReps: Int(repsText) ?? 0,
+                    completedReps: Int(repsText) ?? 0,
+                    weight: Double(resistanceText) ?? 0,
+                    durationSeconds: atgDurationSeconds(from: row),
                     note: row["note", default: ""],
-                    resistanceUnit: row["resistance_unit"].flatMap { $0.isEmpty ? nil : $0 }
+                    resistanceUnit: row["resistance_unit"].flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 },
+                    weightProvided: Double(resistanceText) != nil,
+                    repsProvided: Int(repsText) != nil,
+                    supersetGroupID: groupValue.map(slug),
+                    roundNumber: roundText.flatMap(Int.init),
+                    totalRounds: roundsText.flatMap(Int.init)
                 )
             }
             return WorkoutSessionDraft(
@@ -199,6 +210,22 @@ enum CSVWorkoutImporter {
         atgProgramValue(from: row).map { "Explicit ATG export field: \($0)" }
     }
 
+    private static func atgValue(from row: [String: String], keys: [String]) -> String? {
+        keys.lazy.compactMap { row[$0]?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty }
+    }
+
+    private static func atgDurationSeconds(from row: [String: String]) -> Int? {
+        if let value = atgValue(from: row, keys: ["duration_seconds", "time_seconds"]).flatMap(Double.init), value > 0 { return Int(value.rounded()) }
+        if let value = atgValue(from: row, keys: ["duration_minutes", "time_minutes"]).flatMap(Double.init), value > 0 { return Int((value * 60).rounded()) }
+        if let value = atgValue(from: row, keys: ["duration_ms", "duration_milliseconds"]).flatMap(Double.init), value > 0 { return Int((value / 1000).rounded()) }
+        guard let text = atgValue(from: row, keys: ["duration", "time"])?.lowercased() else { return nil }
+        let value = text.split(whereSeparator: { $0 == " " || $0 == "\t" }).first.flatMap { Double($0) }
+        guard let value, value > 0 else { return nil }
+        if text.contains("min") { return Int((value * 60).rounded()) }
+        if text.contains("sec") || text.hasSuffix("s") { return Int(value.rounded()) }
+        return nil
+    }
+
     private static func strongLiftsSets(from row: [String: String]) -> [WorkoutSetDraft] {
         let exerciseName = row["Exercise", default: "Exercise"]
         let exerciseID = slug(exerciseName)
@@ -215,7 +242,9 @@ enum CSVWorkoutImporter {
                 completedReps: reps,
                 weight: Double(weightText) ?? 0,
                 durationSeconds: nil,
-                note: row["Notes", default: ""]
+                note: row["Notes", default: ""],
+                weightProvided: !weightText.isEmpty,
+                repsProvided: !repsText.isEmpty
             )
         }
     }
