@@ -356,5 +356,20 @@ final class ProgramsTests: XCTestCase {
         XCTAssertEqual(entries[1].title, "Rest Day")
         XCTAssertNil(entries[1].workout)
     }
+
+    func testStrongLiftsRequiresAvailableTrainingDay() {
+        var program = Program.strongLiftsDefault
+        program.trainingDays = []
+        XCTAssertEqual(program.validationError, .strongLiftsRequiresTrainingDays)
+        XCTAssertFalse(program.isValid)
+        XCTAssertTrue(UpcomingSchedule.entries(for: program, limit: 3).isEmpty)
+    }
+
+    func testUpcomingScheduleDoesNotLoopWhenAllDaysAreRestDays() {
+        var program = Program.strongLiftsDefault
+        program.trainingDays = []
+        program.restDays = TrainingDay.allCases
+        XCTAssertTrue(UpcomingSchedule.entries(for: program, limit: 3).isEmpty)
+    }
 }
 

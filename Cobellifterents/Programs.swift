@@ -43,6 +43,7 @@ struct ProgramWorkout: Codable, Equatable, Identifiable {
 
 enum ProgramValidationError: Equatable, Error {
     case strongLiftsRequiresAB
+    case strongLiftsRequiresTrainingDays
     case strongLiftsAlternation
     case atgRequiresThreeToFiveDays
 }
@@ -106,6 +107,7 @@ struct Program: Codable, Equatable, Identifiable {
             return (3...5).contains(selectedTrainingDays.count) ? nil : .atgRequiresThreeToFiveDays
         case .strongLifts:
             guard workouts.count == 2, workouts.contains(where: \.isStrongLiftsA), workouts.contains(where: \.isStrongLiftsB) else { return .strongLiftsRequiresAB }
+            guard !scheduledTrainingDays.isEmpty else { return .strongLiftsRequiresTrainingDays }
             return nil
         }
     }
@@ -462,4 +464,5 @@ final class ProgramsRepository {
         return (programs, true)
     }
 }
+
 

@@ -180,7 +180,7 @@ struct ProgramDetailView: View {
     }
 
     private func validationMessage(_ error: ProgramValidationError) -> String {
-        switch error { case .atgRequiresThreeToFiveDays: return "Select 3–5 training days to save this ATG program."; case .strongLiftsAlternation: return "StrongLifts days must alternate A and B."; case .strongLiftsRequiresAB: return "StrongLifts requires Workout A and Workout B." }
+        switch error { case .atgRequiresThreeToFiveDays: return "Select 3–5 training days to save this ATG program."; case .strongLiftsAlternation: return "StrongLifts days must alternate A and B."; case .strongLiftsRequiresAB: return "StrongLifts requires Workout A and Workout B."; case .strongLiftsRequiresTrainingDays: return "Select at least one non-rest training day." }
     }
 }
 
@@ -278,6 +278,6 @@ struct ProgramEditorView: View {
     }
 
     private func editorMessage(_ error: ProgramValidationError) -> String {
-        switch error { case .atgRequiresThreeToFiveDays: return "ATG requires 3–5 selected training days."; case .strongLiftsAlternation: return "Choose alternating A/B days."; case .strongLiftsRequiresAB: return "StrongLifts A/B identity is required." }
+        switch error { case .atgRequiresThreeToFiveDays: return "ATG requires 3–5 selected training days."; case .strongLiftsAlternation: return "Choose alternating A/B days."; case .strongLiftsRequiresAB: return "StrongLifts A/B identity is required."; case .strongLiftsRequiresTrainingDays: return "Select at least one non-rest training day." }
     }
 }
