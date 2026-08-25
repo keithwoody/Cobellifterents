@@ -213,7 +213,7 @@ struct ImportView: View {
             case .strongLiftsCSV:
                 preview = CSVWorkoutImporter.previewStrongLiftsCSV(csv, sourceFileName: url.lastPathComponent)
             case .atgCSV:
-                preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: url.lastPathComponent, startDate: filterByDate ? startDate : nil, endDate: filterByDate ? endDate : nil)
+                preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: url.lastPathComponent, startDate: filterByDate ? startDate : nil, endDate: selectedATGEndDate)
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -232,7 +232,11 @@ struct ImportView: View {
 
     private func rebuildATGPreview() {
         guard selectedSourceKind == .atgCSV, let selectedCSV, let selectedFileName else { return }
-        preview = CSVWorkoutImporter.previewATGCSV(selectedCSV, sourceFileName: selectedFileName, startDate: filterByDate ? startDate : nil, endDate: filterByDate ? Calendar.current.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) : nil)
+        preview = CSVWorkoutImporter.previewATGCSV(selectedCSV, sourceFileName: selectedFileName, startDate: filterByDate ? startDate : nil, endDate: selectedATGEndDate)
+    }
+
+    private var selectedATGEndDate: Date? {
+        filterByDate ? CSVWorkoutImporter.inclusiveATGEndDate(endDate) : nil
     }
 
     private func update(_ session: WorkoutSession, programID: UUID?) {

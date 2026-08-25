@@ -146,6 +146,26 @@ Strength Training,ATG Split Squat,2024-01-11,5,0,lbs,0,0,3x10 instead of 5x5
         XCTAssertEqual(preview.issues.map(\.rowNumber), [5, 6])
     }
 
+    func testATGInclusiveEndDateIncludesEndDayAndPreservesOutOfRangeRawRows() {
+        let csv = "workout_type,exercise,date,repetitions\n" +
+            "Strength Training,Before,2024-01-10,1\n" +
+            "Strength Training,End Day,2024-01-12,2\n" +
+            "Strength Training,After,2024-01-13,3\n"
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = ISODateOnly.date(from: "2024-01-11")!
+        let end = ISODateOnly.date(from: "2024-01-12")!
+        let preview = CSVWorkoutImporter.previewATGCSV(
+            csv,
+            sourceFileName: "ATG.csv",
+            startDate: start,
+            endDate: CSVWorkoutImporter.inclusiveATGEndDate(end, calendar: calendar)
+        )
+
+        XCTAssertEqual(preview.rawRecords.map(\.sourceRowNumber), [2, 3, 4])
+        XCTAssertEqual(preview.workoutSessions.map { $0.sets.map(\.exerciseName) }, [["End Day"]])
+    }
+
     func testATGProgramAssignmentRequiresExplicitEvidence() {
         let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
             "Strength Training,Monday Original,2024-01-01,1,,,,,\n" +

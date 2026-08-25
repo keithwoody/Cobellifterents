@@ -2,6 +2,13 @@ import CryptoKit
 import Foundation
 
 enum CSVWorkoutImporter {
+    /// Date pickers provide the beginning of the selected day. ATG date ranges
+    /// are inclusive, so normalize the upper bound to the final instant of
+    /// that day before filtering native sessions.
+    static func inclusiveATGEndDate(_ date: Date, calendar: Calendar = .current) -> Date {
+        calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date))?.addingTimeInterval(-1) ?? date
+    }
+
     static func previewStrongLiftsCSV(_ csv: String, sourceFileName: String) -> ImportPreview {
         let rows = CSVParser.parse(csv)
         guard let header = rows.first else {
