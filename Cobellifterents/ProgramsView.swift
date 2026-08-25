@@ -162,6 +162,10 @@ struct ProgramDetailView: View {
             if displayedProgram.kind == .strongLifts {
                 Section("Training days") { Text(displayedProgram.trainingDays.map(\.shortName).joined(separator: " • ")) }
             }
+            Section("Rest days") {
+                if displayedProgram.restDays.isEmpty { Text("None selected").foregroundStyle(.secondary) }
+                else { Text(displayedProgram.restDays.map(\.shortName).joined(separator: " • ")) }
+            }
             if let error = displayedProgram.validationError { Text(validationMessage(error)).foregroundStyle(.red) }
         }
         .navigationTitle(displayedProgram.name)
@@ -192,6 +196,7 @@ struct ProgramEditorView: View {
             Form {
                 Section("Program") { TextField("Name", text: $program.name) }
                 if program.kind == .strongLifts { strongLiftsDaySection }
+            restDaySection
                 ForEach(program.workouts.indices, id: \.self) { workoutIndex in
                     workoutSection(workoutIndex)
                 }
@@ -236,6 +241,17 @@ struct ProgramEditorView: View {
         } header: { Text(program.kind == .strongLifts ? "Workout \(program.workouts[index].identity ?? "")" : program.workouts[index].name) }
     }
 
+    private var restDaySection: some View {
+        Section("Rest days") {
+            dayButtons(selection: Binding(
+                get: { program.restDays },
+                set: { program.restDays = $0.sorted() }
+            ), onToggle: { day in program.toggleRestDay(day) })
+            Text("Rest days appear in Next Up and never create a workout.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
     private var strongLiftsDaySection: some View {
         Section("StrongLifts training days") {
             dayButtons(selection: Binding(get: { program.trainingDays }, set: { program.trainingDays = $0.sorted() }))
@@ -251,10 +267,11 @@ struct ProgramEditorView: View {
         }
     }
 
-    private func dayButtons(selection: Binding<[TrainingDay]>) -> some View {
+    private func dayButtons(selection: Binding<[TrainingDay]>, onToggle: ((TrainingDay) -> Void)? = nil) -> some View {
         HStack { ForEach(TrainingDay.allCases) { day in
             Button(day.shortName) {
-                if selection.wrappedValue.contains(day) { selection.wrappedValue.removeAll { $0 == day } }
+                if let onToggle { onToggle(day) }
+                else if selection.wrappedValue.contains(day) { selection.wrappedValue.removeAll { $0 == day } }
                 else { selection.wrappedValue.append(day) }
             }.buttonStyle(.bordered).tint(selection.wrappedValue.contains(day) ? .accentColor : .gray)
         }}

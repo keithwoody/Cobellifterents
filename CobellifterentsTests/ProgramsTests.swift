@@ -331,4 +331,30 @@ final class ProgramsTests: XCTestCase {
         XCTAssertNotEqual(first.id, second.id)
         XCTAssertNotEqual(first.workouts[0].id, second.workouts[0].id)
     }
+
+    func testRestDayConfigurationPersistsAndRemovesWorkoutAssignment() throws {
+        let suite = "ProgramsRestDayTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let repository = ProgramsRepository(defaults: defaults)
+        var program = Program.strongLiftsDefault
+        program.toggleRestDay(.wednesday)
+        XCTAssertEqual(program.restDays, [.wednesday])
+        XCTAssertFalse(program.trainingDays.contains(.wednesday))
+        repository.save([program])
+        XCTAssertEqual(repository.load().first?.restDays, [.wednesday])
+    }
+
+    func testUpcomingScheduleRendersRestDayAndHonorsThreeEntryLimit() {
+        var program = Program.strongLiftsDefault
+        program.restDays = [.tuesday]
+        let calendar = Calendar(identifier: .gregorian)
+        let monday = calendar.date(from: DateComponents(year: 2026, month: 3, day: 2))!
+        let entries = UpcomingSchedule.entries(for: program, from: monday, limit: 3, calendar: calendar)
+        XCTAssertEqual(entries.count, 3)
+        XCTAssertEqual(entries.map(\.kind), [.workout, .restDay, .workout])
+        XCTAssertEqual(entries[1].title, "Rest Day")
+        XCTAssertNil(entries[1].workout)
+    }
 }
+

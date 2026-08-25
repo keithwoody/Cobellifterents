@@ -53,15 +53,18 @@ struct Program: Codable, Equatable, Identifiable {
     var name: String
     var workouts: [ProgramWorkout]
     var trainingDays: [TrainingDay]
+    /// Weekdays explicitly marked as recovery days. This is separate from workout assignments so it can be persisted and shown in the calendar.
+    var restDays: [TrainingDay]
     var generatedSourceKey: String?
 
-    init(id: UUID = UUID(), kind: ProgramKind, name: String, workouts: [ProgramWorkout], trainingDays: [TrainingDay] = [], generatedSourceKey: String? = nil) {
+    init(id: UUID = UUID(), kind: ProgramKind, name: String, workouts: [ProgramWorkout], trainingDays: [TrainingDay] = [], restDays: [TrainingDay] = [], generatedSourceKey: String? = nil) {
         self.id = id; self.kind = kind; self.name = name; self.workouts = workouts
         self.trainingDays = (trainingDays.isEmpty && kind == .strongLifts ? [.monday, .wednesday, .friday] : trainingDays).sorted()
+        self.restDays = restDays.sorted()
         self.generatedSourceKey = generatedSourceKey
     }
 
-    private enum CodingKeys: String, CodingKey { case id, kind, name, workouts, trainingDays, generatedSourceKey }
+    private enum CodingKeys: String, CodingKey { case id, kind, name, workouts, trainingDays, restDays, generatedSourceKey }
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(ProgramKind.self, forKey: .kind)
@@ -71,11 +74,31 @@ struct Program: Codable, Equatable, Identifiable {
         self.init(id: try container.decode(UUID.self, forKey: .id), kind: kind,
                   name: try container.decode(String.self, forKey: .name), workouts: workouts,
                   trainingDays: days,
+                  restDays: try container.decodeIfPresent([TrainingDay].self, forKey: .restDays) ?? [],
                   generatedSourceKey: try container.decodeIfPresent(String.self, forKey: .generatedSourceKey))
     }
 
     var selectedTrainingDays: [TrainingDay] {
         kind == .strongLifts ? trainingDays.sorted() : Array(Set(workouts.flatMap(\.assignedDays))).sorted()
+    }
+
+    var scheduledTrainingDays: [TrainingDay] {
+        selectedTrainingDays.filter { !restDays.contains($0) }
+    }
+
+    mutating func toggleRestDay(_ day: TrainingDay) {
+        if restDays.contains(day) {
+            restDays.removeAll { $0 == day }
+        } else {
+            restDays.append(day)
+            if kind == .strongLifts {
+                trainingDays.removeAll { $0 == day }
+            } else {
+                for index in workouts.indices { workouts[index].assignedDays.removeAll { $0 == day } }
+            }
+        }
+        restDays.sort()
+        trainingDays.sort()
     }
     var validationError: ProgramValidationError? {
         switch kind {
@@ -208,7 +231,7 @@ enum ProgramNormalization {
                 workoutB ?? ProgramWorkout(identity: "B", name: "Workout B", exercises: [], assignedDays: [])
             ]
             return Program(id: program.id, kind: program.kind, name: program.name, workouts: repairedWorkouts,
-                           trainingDays: program.trainingDays, generatedSourceKey: program.generatedSourceKey)
+                           trainingDays: program.trainingDays, restDays: program.restDays, generatedSourceKey: program.generatedSourceKey)
         }
         return program
     }
@@ -430,7 +453,7 @@ final class ProgramsRepository {
         guard let sourceKey = program.generatedSourceKey else { return (programs, false) }
         if let index = programs.firstIndex(where: { $0.generatedSourceKey == sourceKey }) {
             let existingID = programs[index].id
-            programs[index] = Program(id: existingID, kind: program.kind, name: program.name, workouts: program.workouts, trainingDays: program.trainingDays, generatedSourceKey: sourceKey)
+            programs[index] = Program(id: existingID, kind: program.kind, name: program.name, workouts: program.workouts, trainingDays: program.trainingDays, restDays: program.restDays, generatedSourceKey: sourceKey)
             save(programs)
             return (programs, false)
         }
@@ -439,3 +462,4 @@ final class ProgramsRepository {
         return (programs, true)
     }
 }
+
