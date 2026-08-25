@@ -130,6 +130,9 @@ final class WorkoutSession {
     var importSourceRecordID: String?
     var bodyWeight: Double?
     var notes: String?
+    /// The selected Program's stable identifier. This is intentionally separate from
+    /// imported source fields so assignment edits never rewrite provenance.
+    var programAssignmentID: UUID?
     var programAssignmentRawValue: String?
     var programAssignmentEvidence: String?
     @Relationship(deleteRule: .cascade, inverse: \WorkoutSetRecord.session) var sets: [WorkoutSetRecord]
@@ -145,6 +148,7 @@ final class WorkoutSession {
         self.importSourceRecordID = nil
         self.bodyWeight = nil
         self.notes = ""
+        self.programAssignmentID = nil
         self.programAssignmentRawValue = nil
         self.programAssignmentEvidence = nil
         self.sets = sets
@@ -153,6 +157,12 @@ final class WorkoutSession {
     var templateID: TemplateID? { TemplateID(rawValue: templateIDRawValue) }
     var isComplete: Bool { completedAt != nil }
     var isImported: Bool { importSourceRecordID != nil }
+    var importProgramAssignment: ImportProgramAssignment? {
+        guard let rawValue = programAssignmentRawValue,
+              let assignment = ImportProgramAssignment(rawValue: rawValue),
+              assignment != .unassignedAmbiguous else { return nil }
+        return assignment
+    }
 }
 
 @Model
@@ -167,6 +177,11 @@ final class WorkoutSetRecord {
     var durationSeconds: Int?
     var notes: String?
     var resistanceUnit: String?
+    var weightProvided: Bool?
+    var repsProvided: Bool?
+    var supersetGroupID: String?
+    var roundNumber: Int?
+    var totalRounds: Int?
     var isComplete: Bool
     var session: WorkoutSession?
 
@@ -181,6 +196,11 @@ final class WorkoutSetRecord {
         self.durationSeconds = nil
         self.notes = ""
         self.resistanceUnit = nil
+        self.weightProvided = false
+        self.repsProvided = false
+        self.supersetGroupID = nil
+        self.roundNumber = nil
+        self.totalRounds = nil
         self.isComplete = isComplete
     }
 }

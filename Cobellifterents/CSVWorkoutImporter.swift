@@ -2,6 +2,13 @@ import CryptoKit
 import Foundation
 
 enum CSVWorkoutImporter {
+    /// Date pickers provide the beginning of the selected day. ATG date ranges
+    /// are inclusive, so normalize the upper bound to the final instant of
+    /// that day before filtering native sessions.
+    static func inclusiveATGEndDate(_ date: Date, calendar: Calendar = .current) -> Date {
+        calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date))?.addingTimeInterval(-1) ?? date
+    }
+
     static func previewStrongLiftsCSV(_ csv: String, sourceFileName: String) -> ImportPreview {
         let rows = CSVParser.parse(csv)
         guard let header = rows.first else {
@@ -107,6 +114,18 @@ enum CSVWorkoutImporter {
             let rowNumber = index + 2
             let dateText = dict["date", default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
             let occurredAt = parseISODate(dateText)
+            // Provenance is independent of whether a row can be converted into a
+            // native session. Retain every source row before validating its date or
+            // applying the optional native-session range.
+            let rawID = stableID(["atg", sourceFileName, String(rowNumber)])
+            rawRecords.append(ImportedRawRecordDraft(
+                sourceKind: .atgCSV,
+                sourceFileName: sourceFileName,
+                sourceRowNumber: rowNumber,
+                sourceRecordID: rawID,
+                rowJSON: JSONStableEncoder.encode(dict),
+                occurredAt: occurredAt
+            ))
             guard let occurredAt else {
                 if !dateText.isEmpty {
                     issues.append(ImportIssue(rowNumber: rowNumber, message: "Could not parse ATG date: \(dateText)"))
@@ -117,17 +136,6 @@ enum CSVWorkoutImporter {
             }
             if let startDate, occurredAt < startDate { continue }
             if let endDate, occurredAt > endDate { continue }
-            // Source row identity makes re-import idempotent and avoids silently
-            // forking provenance when an export is edited in place.
-            let rawID = stableID(["atg", sourceFileName, String(rowNumber)])
-            rawRecords.append(ImportedRawRecordDraft(
-                sourceKind: .atgCSV,
-                sourceFileName: sourceFileName,
-                sourceRowNumber: rowNumber,
-                sourceRecordID: rawID,
-                rowJSON: JSONStableEncoder.encode(dict),
-                occurredAt: occurredAt
-            ))
             let workoutType = dict["workout_type", default: "Strength Training"].trimmingCharacters(in: .whitespacesAndNewlines)
             let groupID = stableID(["atg-session", sourceFileName, ISODateOnly.string(from: occurredAt), workoutType])
             if grouped[groupID] == nil { groupOrder.append(groupID) }
@@ -139,16 +147,27 @@ enum CSVWorkoutImporter {
             guard let first = rows.first, let date = parseISODate(first["date", default: ""]) else { return nil }
             let sourceRecordID = stableID(["atg-session", sourceFileName, ISODateOnly.string(from: date), first["workout_type", default: "Strength Training"]])
             let sets = rows.enumerated().map { offset, row in
-                WorkoutSetDraft(
-                    exerciseID: slug(row["exercise", default: "exercise"]),
-                    exerciseName: row["exercise", default: "Exercise"],
+                let exerciseName = row["exercise", default: "Exercise"].trimmingCharacters(in: .whitespacesAndNewlines)
+                let repsText = row["repetitions", default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+                let resistanceText = row["resistance", default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+                let groupValue = atgValue(from: row, keys: ["superset", "superset_id", "superset_group", "circuit", "circuit_id", "group"])
+                let roundsText = atgValue(from: row, keys: ["rounds", "round_count", "total_rounds", "circuit_rounds"])
+                let roundText = atgValue(from: row, keys: ["round", "round_number", "circuit_round"])
+                return WorkoutSetDraft(
+                    exerciseID: slug(exerciseName),
+                    exerciseName: exerciseName,
                     setNumber: offset + 1,
-                    targetReps: Int(row["repetitions", default: ""]) ?? 0,
-                    completedReps: Int(row["repetitions", default: ""]) ?? 0,
-                    weight: Double(row["resistance", default: ""]) ?? 0,
-                    durationSeconds: Int(row["duration_seconds", default: ""]) ?? ((Double(row["duration_ms", default: ""]) ?? 0) > 0 ? Int((Double(row["duration_ms", default: ""]) ?? 0) / 1000) : nil),
+                    targetReps: Int(repsText) ?? 0,
+                    completedReps: Int(repsText) ?? 0,
+                    weight: Double(resistanceText) ?? 0,
+                    durationSeconds: atgDurationSeconds(from: row),
                     note: row["note", default: ""],
-                    resistanceUnit: row["resistance_unit"].flatMap { $0.isEmpty ? nil : $0 }
+                    resistanceUnit: row["resistance_unit"].flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 },
+                    weightProvided: Double(resistanceText) != nil,
+                    repsProvided: Int(repsText) != nil,
+                    supersetGroupID: groupValue.map(slug),
+                    roundNumber: roundText.flatMap(Int.init),
+                    totalRounds: roundsText.flatMap(Int.init)
                 )
             }
             return WorkoutSessionDraft(
@@ -191,6 +210,22 @@ enum CSVWorkoutImporter {
         atgProgramValue(from: row).map { "Explicit ATG export field: \($0)" }
     }
 
+    private static func atgValue(from row: [String: String], keys: [String]) -> String? {
+        keys.lazy.compactMap { row[$0]?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty }
+    }
+
+    private static func atgDurationSeconds(from row: [String: String]) -> Int? {
+        if let value = atgValue(from: row, keys: ["duration_seconds", "time_seconds"]).flatMap(Double.init), value > 0 { return Int(value.rounded()) }
+        if let value = atgValue(from: row, keys: ["duration_minutes", "time_minutes"]).flatMap(Double.init), value > 0 { return Int((value * 60).rounded()) }
+        if let value = atgValue(from: row, keys: ["duration_ms", "duration_milliseconds"]).flatMap(Double.init), value > 0 { return Int((value / 1000).rounded()) }
+        guard let text = atgValue(from: row, keys: ["duration", "time"])?.lowercased() else { return nil }
+        let value = text.split(whereSeparator: { $0 == " " || $0 == "\t" }).first.flatMap { Double($0) }
+        guard let value, value > 0 else { return nil }
+        if text.contains("min") { return Int((value * 60).rounded()) }
+        if text.contains("sec") || text.hasSuffix("s") { return Int(value.rounded()) }
+        return nil
+    }
+
     private static func strongLiftsSets(from row: [String: String]) -> [WorkoutSetDraft] {
         let exerciseName = row["Exercise", default: "Exercise"]
         let exerciseID = slug(exerciseName)
@@ -207,7 +242,9 @@ enum CSVWorkoutImporter {
                 completedReps: reps,
                 weight: Double(weightText) ?? 0,
                 durationSeconds: nil,
-                note: row["Notes", default: ""]
+                note: row["Notes", default: ""],
+                weightProvided: !weightText.isEmpty,
+                repsProvided: !repsText.isEmpty
             )
         }
     }

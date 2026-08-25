@@ -43,6 +43,7 @@ struct ProgramWorkout: Codable, Equatable, Identifiable {
 
 enum ProgramValidationError: Equatable, Error {
     case strongLiftsRequiresAB
+    case strongLiftsRequiresTrainingDays
     case strongLiftsAlternation
     case atgRequiresThreeToFiveDays
 }
@@ -53,15 +54,18 @@ struct Program: Codable, Equatable, Identifiable {
     var name: String
     var workouts: [ProgramWorkout]
     var trainingDays: [TrainingDay]
+    /// Weekdays explicitly marked as recovery days. This is separate from workout assignments so it can be persisted and shown in the calendar.
+    var restDays: [TrainingDay]
     var generatedSourceKey: String?
 
-    init(id: UUID = UUID(), kind: ProgramKind, name: String, workouts: [ProgramWorkout], trainingDays: [TrainingDay] = [], generatedSourceKey: String? = nil) {
+    init(id: UUID = UUID(), kind: ProgramKind, name: String, workouts: [ProgramWorkout], trainingDays: [TrainingDay] = [], restDays: [TrainingDay] = [], generatedSourceKey: String? = nil) {
         self.id = id; self.kind = kind; self.name = name; self.workouts = workouts
         self.trainingDays = (trainingDays.isEmpty && kind == .strongLifts ? [.monday, .wednesday, .friday] : trainingDays).sorted()
+        self.restDays = restDays.sorted()
         self.generatedSourceKey = generatedSourceKey
     }
 
-    private enum CodingKeys: String, CodingKey { case id, kind, name, workouts, trainingDays, generatedSourceKey }
+    private enum CodingKeys: String, CodingKey { case id, kind, name, workouts, trainingDays, restDays, generatedSourceKey }
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(ProgramKind.self, forKey: .kind)
@@ -71,11 +75,31 @@ struct Program: Codable, Equatable, Identifiable {
         self.init(id: try container.decode(UUID.self, forKey: .id), kind: kind,
                   name: try container.decode(String.self, forKey: .name), workouts: workouts,
                   trainingDays: days,
+                  restDays: try container.decodeIfPresent([TrainingDay].self, forKey: .restDays) ?? [],
                   generatedSourceKey: try container.decodeIfPresent(String.self, forKey: .generatedSourceKey))
     }
 
     var selectedTrainingDays: [TrainingDay] {
         kind == .strongLifts ? trainingDays.sorted() : Array(Set(workouts.flatMap(\.assignedDays))).sorted()
+    }
+
+    var scheduledTrainingDays: [TrainingDay] {
+        selectedTrainingDays.filter { !restDays.contains($0) }
+    }
+
+    mutating func toggleRestDay(_ day: TrainingDay) {
+        if restDays.contains(day) {
+            restDays.removeAll { $0 == day }
+        } else {
+            restDays.append(day)
+            if kind == .strongLifts {
+                trainingDays.removeAll { $0 == day }
+            } else {
+                for index in workouts.indices { workouts[index].assignedDays.removeAll { $0 == day } }
+            }
+        }
+        restDays.sort()
+        trainingDays.sort()
     }
     var validationError: ProgramValidationError? {
         switch kind {
@@ -83,6 +107,7 @@ struct Program: Codable, Equatable, Identifiable {
             return (3...5).contains(selectedTrainingDays.count) ? nil : .atgRequiresThreeToFiveDays
         case .strongLifts:
             guard workouts.count == 2, workouts.contains(where: \.isStrongLiftsA), workouts.contains(where: \.isStrongLiftsB) else { return .strongLiftsRequiresAB }
+            guard !scheduledTrainingDays.isEmpty else { return .strongLiftsRequiresTrainingDays }
             return nil
         }
     }
@@ -113,16 +138,22 @@ struct Program: Codable, Equatable, Identifiable {
         for index in offsets.sorted(by: >) where workouts[workoutIndex].exercises.indices.contains(index) { workouts[workoutIndex].exercises.remove(at: index) }
     }
 
+    // These IDs are part of the persisted assignment contract. Defaults are
+    // returned when no programs have been saved yet, so UUID() here would
+    // make an assignment point at a different Program after relaunch.
+    private static let strongLiftsDefaultID = UUID(uuidString: "7D7D8F1A-1BD2-4B0D-9F2E-7C6F4D2E1A01")!
+    private static let atgDefaultID = UUID(uuidString: "7D7D8F1A-1BD2-4B0D-9F2E-7C6F4D2E1A02")!
+
     static let strongLiftsDefault: Program = {
         func exercise(_ name: String, _ sets: Int = 5, _ reps: Int = 5) -> ProgramExercise { ProgramExercise(name: name, targetSets: sets, targetReps: reps) }
-        return Program(kind: .strongLifts, name: "StrongLifts 5×5", workouts: [
+        return Program(id: strongLiftsDefaultID, kind: .strongLifts, name: "StrongLifts 5×5", workouts: [
             ProgramWorkout(identity: "A", name: "Workout A", exercises: [exercise("Squat"), exercise("Bench Press"), exercise("Barbell Row")]),
             ProgramWorkout(identity: "B", name: "Workout B", exercises: [exercise("Squat"), exercise("Overhead Press"), exercise("Deadlift", 1)])
         ])
     }()
 
     /// A modest strength-and-mobility-inspired starting template; this is not full ATG mobility logging.
-    static let atgDefault: Program = Program(kind: .atg, name: "ATG Basics (modest starter)", workouts: [
+    static let atgDefault: Program = Program(id: atgDefaultID, kind: .atg, name: "ATG Basics (modest starter)", workouts: [
         ProgramWorkout(name: "ATG Training", exercises: [
             ProgramExercise(name: "Split Squat", targetSets: 2, targetReps: 5),
             ProgramExercise(name: "Tibialis Raise", targetSets: 2, targetReps: 10),
@@ -156,7 +187,14 @@ enum ProgramWorkoutConversion {
     }
 
     static func template(from workout: ProgramWorkout, programName: String?) -> WorkoutTemplate? {
-        guard let identity = workout.identity, let templateID = TemplateID(rawValue: "strongLifts\(identity)") else { return nil }
+        let templateID: TemplateID
+        if let identity = workout.identity, let strongLiftsID = TemplateID(rawValue: "strongLifts\(identity)") {
+            templateID = strongLiftsID
+        } else if workout.identity == nil {
+            templateID = .atgImported
+        } else {
+            return nil
+        }
         let displayName = programName.map { WorkoutDisplayNaming.combined(programName: $0, workoutName: workout.name) } ?? workout.name
         return WorkoutTemplate(id: templateID, name: displayName, exercises: workout.exercises.map { exercise in
             ExerciseTemplate(id: exercise.id.uuidString, name: exercise.name, targetSets: exercise.targetSets, targetReps: exercise.targetReps,
@@ -195,7 +233,7 @@ enum ProgramNormalization {
                 workoutB ?? ProgramWorkout(identity: "B", name: "Workout B", exercises: [], assignedDays: [])
             ]
             return Program(id: program.id, kind: program.kind, name: program.name, workouts: repairedWorkouts,
-                           trainingDays: program.trainingDays, generatedSourceKey: program.generatedSourceKey)
+                           trainingDays: program.trainingDays, restDays: program.restDays, generatedSourceKey: program.generatedSourceKey)
         }
         return program
     }
@@ -240,6 +278,147 @@ enum ActiveProgramSelectionLogic {
         return ActiveProgramSelection(
             strongLiftsID: selection.strongLiftsID.flatMap { strongIDs.contains($0) ? $0 : nil },
             atgID: selection.atgID.flatMap { atgIDs.contains($0) ? $0 : nil })
+    }
+}
+
+struct UpcomingScheduleEntry: Equatable, Identifiable {
+    enum Kind: Equatable { case workout, rest, restDay }
+
+    let date: Date
+    let kind: Kind
+    let workoutNames: [String]
+    let workout: ProgramWorkout?
+
+    init(date: Date, kind: Kind, workoutNames: [String], workout: ProgramWorkout? = nil) {
+        self.date = date
+        self.kind = kind
+        self.workoutNames = workoutNames
+        self.workout = workout
+    }
+
+    var id: Date { date }
+    var title: String { kind == .rest || kind == .restDay ? "Rest Day" : (workout?.name ?? workoutNames.first ?? "Workout") }
+}
+
+struct UpcomingStartableWorkout {
+    let date: Date
+    let workout: ProgramWorkout
+    let template: WorkoutTemplate
+}
+
+enum UpcomingSchedule {
+    /// Returns the next three calendar days, starting today, for the active programs.
+    /// A day without a scheduled workout is retained as an explicit rest entry.
+    static func entries(
+        from date: Date = Date(),
+        calendar: Calendar = .current,
+        strongLifts: Program?,
+        atg: Program?,
+        completedSessions: [WorkoutSession] = []
+    ) -> [UpcomingScheduleEntry] {
+        let start = calendar.startOfDay(for: date)
+        let strongProgram = strongLifts?.kind == .strongLifts ? strongLifts : nil
+        let atgProgram = atg?.kind == .atg ? atg : nil
+        guard strongProgram != nil || atgProgram != nil else { return [] }
+
+        var nextStrongIdentity = strongProgram.flatMap { program in
+            StrongLiftsProgramSelection.nextWorkout(in: program, after: completedSessions)?.identity
+        }
+        return (0..<3).compactMap { offset in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { return nil }
+            let weekday = calendar.component(.weekday, from: day)
+            let trainingDay = TrainingDay.from(calendarWeekday: weekday)
+            var names: [String] = []
+
+            if let strongProgram, strongProgram.trainingDays.contains(trainingDay),
+               let identity = nextStrongIdentity,
+               let workout = strongProgram.workouts.first(where: { $0.identity == identity }) {
+                names.append(WorkoutDisplayNaming.combined(programName: strongProgram.name, workoutName: workout.name))
+                nextStrongIdentity = identity == "A" ? "B" : "A"
+            }
+            if let atgProgram {
+                names.append(contentsOf: atgProgram.workouts.filter { $0.assignedDays.contains(trainingDay) }.map {
+                    WorkoutDisplayNaming.combined(programName: atgProgram.name, workoutName: $0.name)
+                })
+            }
+            return UpcomingScheduleEntry(date: day, kind: names.isEmpty ? .rest : .workout, workoutNames: names)
+        }
+    }
+
+    static func entries(for program: Program, from startDate: Date = Date(), limit: Int = 3, calendar: Calendar = .current) -> [UpcomingScheduleEntry] {
+        guard limit > 0, program.isValid, !program.scheduledTrainingDays.isEmpty else { return [] }
+        var date = calendar.startOfDay(for: startDate)
+        var result: [UpcomingScheduleEntry] = []
+        var occurrence = 0
+        while result.count < limit {
+            let day = TrainingDay.from(calendarWeekday: calendar.component(.weekday, from: date))
+            if program.restDays.contains(day) {
+                result.append(UpcomingScheduleEntry(date: date, kind: .restDay, workoutNames: []))
+            } else if program.scheduledTrainingDays.contains(day), let workout = program.kind == .strongLifts ? program.workouts.first(where: { $0.identity == (occurrence.isMultiple(of: 2) ? "A" : "B") }) : program.workouts.first(where: { $0.assignedDays.contains(day) }) {
+                result.append(UpcomingScheduleEntry(date: date, kind: .workout, workoutNames: [workout.name], workout: workout))
+                occurrence += 1
+            }
+            date = calendar.date(byAdding: .day, value: 1, to: date) ?? date.addingTimeInterval(86_400)
+        }
+        return result
+    }
+
+    /// Selects the first scheduled workout with exercises, skipping rest days and
+    /// scheduled-but-empty workouts. This is the source of truth for the home
+    /// start card as well as the upcoming schedule display.
+    static func nextStartableWorkout(
+        from date: Date = Date(),
+        calendar: Calendar = .current,
+        strongLifts: Program?,
+        atg: Program?,
+        completedSessions: [WorkoutSession] = []
+    ) -> UpcomingStartableWorkout? {
+        let strongProgram = strongLifts?.kind == .strongLifts && strongLifts?.isValid == true ? strongLifts : nil
+        let atgProgram = atg?.kind == .atg && atg?.isValid == true ? atg : nil
+        guard strongProgram != nil || atgProgram != nil else { return nil }
+
+        var nextStrongIdentity = strongProgram.flatMap {
+            StrongLiftsProgramSelection.nextWorkout(in: $0, after: completedSessions)?.identity
+        }
+        let start = calendar.startOfDay(for: date)
+
+        // One full week is sufficient for the weekly schedules supported by the app.
+        for offset in 0..<7 {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { continue }
+            let trainingDay = TrainingDay.from(calendarWeekday: calendar.component(.weekday, from: day))
+            var scheduled: [(ProgramWorkout, String?)] = []
+
+            if let strongProgram, strongProgram.trainingDays.contains(trainingDay),
+               let identity = nextStrongIdentity,
+               let workout = strongProgram.workouts.first(where: { $0.identity == identity }) {
+                scheduled.append((workout, strongProgram.name))
+                nextStrongIdentity = identity == "A" ? "B" : "A"
+            }
+            if let atgProgram {
+                scheduled.append(contentsOf: atgProgram.workouts.filter { $0.assignedDays.contains(trainingDay) }.map { ($0, atgProgram.name) })
+            }
+
+            for (workout, programName) in scheduled {
+                guard let template = ProgramWorkoutConversion.template(from: workout, programName: programName),
+                      !template.exercises.isEmpty else { continue }
+                return UpcomingStartableWorkout(date: day, workout: workout, template: template)
+            }
+        }
+        return nil
+    }
+}
+
+private extension TrainingDay {
+    static func from(calendarWeekday: Int) -> TrainingDay {
+        switch calendarWeekday {
+        case 1: return .sunday
+        case 2: return .monday
+        case 3: return .tuesday
+        case 4: return .wednesday
+        case 5: return .thursday
+        case 6: return .friday
+        default: return .saturday
+        }
     }
 }
 
@@ -303,7 +482,7 @@ final class ProgramsRepository {
         guard let sourceKey = program.generatedSourceKey else { return (programs, false) }
         if let index = programs.firstIndex(where: { $0.generatedSourceKey == sourceKey }) {
             let existingID = programs[index].id
-            programs[index] = Program(id: existingID, kind: program.kind, name: program.name, workouts: program.workouts, trainingDays: program.trainingDays, generatedSourceKey: sourceKey)
+            programs[index] = Program(id: existingID, kind: program.kind, name: program.name, workouts: program.workouts, trainingDays: program.trainingDays, restDays: program.restDays, generatedSourceKey: sourceKey)
             save(programs)
             return (programs, false)
         }
@@ -312,3 +491,5 @@ final class ProgramsRepository {
         return (programs, true)
     }
 }
+
+

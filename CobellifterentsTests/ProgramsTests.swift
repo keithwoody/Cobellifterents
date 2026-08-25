@@ -240,7 +240,90 @@ final class ProgramsTests: XCTestCase {
         XCTAssertEqual(template.exercises.map(\.targetSets), [5, 5, 1])
         XCTAssertEqual(template.exercises.map(\.name), ["Squat", "Overhead Press", "Deadlift"])
     }
+    func testNextStartableWorkoutUsesNearestATGBeforeLaterStrongLifts() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let tuesday = calendar.date(from: DateComponents(year: 2026, month: 8, day: 25))!
+        var atg = Program.atgDefault
+        atg.workouts[0].assignedDays = [.tuesday, .thursday, .saturday]
+
+        let selected = try XCTUnwrap(UpcomingSchedule.nextStartableWorkout(
+            from: tuesday,
+            calendar: calendar,
+            strongLifts: Program.strongLiftsDefault,
+            atg: atg
+        ))
+
+        XCTAssertEqual(calendar.component(.weekday, from: selected.date), 3)
+        XCTAssertEqual(selected.template.id, .atgImported)
+        XCTAssertEqual(selected.template.name, "ATG Basics (modest starter) • ATG Training")
+    }
+
+    func testNextStartableWorkoutSkipsRestDaysAndFindsLaterWorkout() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let tuesday = calendar.date(from: DateComponents(year: 2026, month: 8, day: 25))!
+        var atg = Program.atgDefault
+        atg.workouts[0].assignedDays = [.thursday, .saturday, .sunday]
+
+        let selected = try XCTUnwrap(UpcomingSchedule.nextStartableWorkout(
+            from: tuesday,
+            calendar: calendar,
+            strongLifts: nil,
+            atg: atg
+        ))
+
+        XCTAssertEqual(calendar.component(.weekday, from: selected.date), 5)
+        XCTAssertEqual(selected.template.id, .atgImported)
+    }
+
+    func testNextStartableWorkoutReturnsNilWithoutValidScheduledWorkout() {
+        var atg = Program.atgDefault
+        atg.workouts[0].assignedDays = [.tuesday, .thursday]
+        XCTAssertNil(UpcomingSchedule.nextStartableWorkout(strongLifts: nil, atg: atg))
+
+        atg.workouts[0].assignedDays = [.tuesday, .thursday, .saturday]
+        atg.workouts[0].exercises = []
+        XCTAssertNil(UpcomingSchedule.nextStartableWorkout(strongLifts: nil, atg: atg))
+    }
+
+    func testUpcomingScheduleShowsThreeDaysAndExplicitRestDays() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let monday = calendar.date(from: DateComponents(year: 2026, month: 8, day: 24))!
+
+        let entries = UpcomingSchedule.entries(
+            from: monday,
+            calendar: calendar,
+            strongLifts: Program.strongLiftsDefault,
+            atg: nil
+        )
+
+        XCTAssertEqual(entries.count, 3)
+        XCTAssertEqual(entries.map { calendar.component(.weekday, from: $0.date) }, [2, 3, 4])
+        XCTAssertEqual(entries[0].kind, .workout)
+        XCTAssertEqual(entries[0].workoutNames, ["StrongLifts 5×5 • Workout A"])
+        XCTAssertEqual(entries[1].kind, .rest)
+        XCTAssertEqual(entries[1].workoutNames, [])
+        XCTAssertEqual(entries[2].kind, .workout)
+        XCTAssertEqual(entries[2].workoutNames, ["StrongLifts 5×5 • Workout B"])
+    }
+
+    func testUpcomingScheduleCombinesProgramsAndReturnsEmptyWithoutPrograms() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let monday = calendar.date(from: DateComponents(year: 2026, month: 8, day: 24))!
+        var atg = Program.atgDefault
+        atg.workouts[0].assignedDays = [.monday, .tuesday, .wednesday]
+
+        let entries = UpcomingSchedule.entries(from: monday, calendar: calendar, strongLifts: nil, atg: atg)
+        XCTAssertEqual(entries[0].workoutNames, ["ATG Basics (modest starter) • ATG Training"])
+        XCTAssertEqual(entries[1].kind, .workout)
+        XCTAssertEqual(UpcomingSchedule.entries(from: monday, calendar: calendar, strongLifts: nil, atg: nil), [])
+    }
+
     func testManualCreationUsesRequestedNameAndFreshStructureIDs() {
+        //
         let first = Program.new(kind: .strongLifts, name: "My 5x5")
         let second = Program.new(kind: .strongLifts, name: "Other")
         XCTAssertEqual(first.name, "My 5x5")
@@ -248,4 +331,45 @@ final class ProgramsTests: XCTestCase {
         XCTAssertNotEqual(first.id, second.id)
         XCTAssertNotEqual(first.workouts[0].id, second.workouts[0].id)
     }
+
+    func testRestDayConfigurationPersistsAndRemovesWorkoutAssignment() throws {
+        let suite = "ProgramsRestDayTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let repository = ProgramsRepository(defaults: defaults)
+        var program = Program.strongLiftsDefault
+        program.toggleRestDay(.wednesday)
+        XCTAssertEqual(program.restDays, [.wednesday])
+        XCTAssertFalse(program.trainingDays.contains(.wednesday))
+        repository.save([program])
+        XCTAssertEqual(repository.load().first?.restDays, [.wednesday])
+    }
+
+    func testUpcomingScheduleRendersRestDayAndHonorsThreeEntryLimit() {
+        var program = Program.strongLiftsDefault
+        program.restDays = [.tuesday]
+        let calendar = Calendar(identifier: .gregorian)
+        let monday = calendar.date(from: DateComponents(year: 2026, month: 3, day: 2))!
+        let entries = UpcomingSchedule.entries(for: program, from: monday, limit: 3, calendar: calendar)
+        XCTAssertEqual(entries.count, 3)
+        XCTAssertEqual(entries.map(\.kind), [.workout, .restDay, .workout])
+        XCTAssertEqual(entries[1].title, "Rest Day")
+        XCTAssertNil(entries[1].workout)
+    }
+
+    func testStrongLiftsRequiresAvailableTrainingDay() {
+        var program = Program.strongLiftsDefault
+        program.trainingDays = []
+        XCTAssertEqual(program.validationError, .strongLiftsRequiresTrainingDays)
+        XCTAssertFalse(program.isValid)
+        XCTAssertTrue(UpcomingSchedule.entries(for: program, limit: 3).isEmpty)
+    }
+
+    func testUpcomingScheduleDoesNotLoopWhenAllDaysAreRestDays() {
+        var program = Program.strongLiftsDefault
+        program.trainingDays = []
+        program.restDays = TrainingDay.allCases
+        XCTAssertTrue(UpcomingSchedule.entries(for: program, limit: 3).isEmpty)
+    }
 }
+

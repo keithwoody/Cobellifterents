@@ -127,6 +127,89 @@ Strength Training,ATG Split Squat,2024-01-11,5,0,lbs,0,0,3x10 instead of 5x5
         XCTAssertEqual(inferred.program.workouts.flatMap { $0.exercises }.map(\.targetReps), Array(repeating: 5, count: 8))
     }
 
+    func testATGImportPreservesAllRowsWhenNativeSessionDateRangeIsApplied() {
+        let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+            "Strength Training,Before,2024-01-10,1,,,,,\n" +
+            "Strength Training,In Range,2024-01-11,2,,,,,\n" +
+            "Strength Training,After,2024-01-13,3,,,,,\n" +
+            "Strength Training,Blank,,4,,,,,\n" +
+            "Strength Training,Invalid,not-a-date,5,,,,,\n"
+        let start = ISODateOnly.date(from: "2024-01-11")!
+        let end = ISODateOnly.date(from: "2024-01-12")!
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv", startDate: start, endDate: end)
+
+        XCTAssertEqual(preview.rawRecords.count, 5)
+        XCTAssertEqual(preview.rawRecords.map(\.sourceRowNumber), [2, 3, 4, 5, 6])
+        XCTAssertEqual(preview.rawRecords.map { $0.occurredAt != nil }, [true, true, true, false, false])
+        XCTAssertEqual(preview.workoutSessions.count, 1)
+        XCTAssertEqual(preview.workoutSessions[0].sets.map(\.exerciseName), ["In Range"])
+        XCTAssertEqual(preview.issues.map(\.rowNumber), [5, 6])
+    }
+
+    func testATGInclusiveEndDateIncludesEndDayAndPreservesOutOfRangeRawRows() {
+        let csv = "workout_type,exercise,date,repetitions\n" +
+            "Strength Training,Before,2024-01-10,1\n" +
+            "Strength Training,End Day,2024-01-12,2\n" +
+            "Strength Training,After,2024-01-13,3\n"
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = ISODateOnly.date(from: "2024-01-11")!
+        let end = ISODateOnly.date(from: "2024-01-12")!
+        let preview = CSVWorkoutImporter.previewATGCSV(
+            csv,
+            sourceFileName: "ATG.csv",
+            startDate: start,
+            endDate: CSVWorkoutImporter.inclusiveATGEndDate(end, calendar: calendar)
+        )
+
+        XCTAssertEqual(preview.rawRecords.map(\.sourceRowNumber), [2, 3, 4])
+        XCTAssertEqual(preview.workoutSessions.map { $0.sets.map(\.exerciseName) }, [["End Day"]])
+    }
+
+    func testATGProgramAssignmentRequiresExplicitEvidence() {
+        let csv = "workout_type,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+            "Strength Training,Monday Original,2024-01-01,1,,,,,\n" +
+            "Strength Training,Tuesday Stable,2024-01-02,1,,,,,\n" +
+            "Strength Training,Monday Changed,2024-01-08,1,,,,,\n" +
+            "Strength Training,Latest,2024-01-20,1,,,,,\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+        let assignments = Dictionary(uniqueKeysWithValues: preview.workoutSessions.map { (ISODateOnly.string(from: $0.startedAt), $0.programAssignment) })
+
+        XCTAssertTrue(assignments.values.allSatisfy { $0 == .unassignedAmbiguous })
+        XCTAssertTrue(preview.workoutSessions.allSatisfy { $0.programAssignmentEvidence == nil })
+    }
+
+    func testATGProgramAssignmentPreservesExplicitSupportedIdentity() {
+        let csv = "workout_type,program,exercise,date,repetitions\n" +
+            "Strength Training,Ankle Ability Zero,Calf Raise,2024-01-20,5\n" +
+            "Strength Training,Back Ability Zero,Back Extension,2024-01-21,5\n" +
+            "Strength Training,Unknown Plan,Move,2024-01-22,5\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+
+        XCTAssertEqual(preview.workoutSessions.map(\.programAssignment), [.ankleAbilityZero, .backAbilityZero, .unassignedAmbiguous])
+        XCTAssertEqual(preview.workoutSessions[0].programAssignmentEvidence, "Explicit ATG export field: Ankle Ability Zero")
+        XCTAssertEqual(preview.workoutSessions[2].programAssignmentEvidence, "Explicit ATG export field: Unknown Plan")
+    }
+
+    func testATGImportSupportsTimeOnlyRowsAndExplicitRounds() {
+        let csv = "workout_type,exercise,date,repetitions,resistance,duration_minutes,superset,rounds,round,note\n" +
+            "Mobility,Walk Backwards,2024-01-11,,,5,Tibialis + Calf,2,1,\n" +
+            "Mobility,Calf Raise,2024-01-11,10,,0,Tibialis + Calf,2,1,\n" +
+            "Mobility,Split Squat,2024-01-11,,,45,,,1,hold\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
+        let sets = preview.workoutSessions[0].sets
+        XCTAssertEqual(sets[0].durationSeconds, 300)
+        XCTAssertFalse(sets[0].weightProvided == true)
+        XCTAssertFalse(sets[0].repsProvided == true)
+        XCTAssertEqual(sets[0].supersetGroupID, "tibialis_calf")
+        XCTAssertEqual(sets[0].totalRounds, 2)
+        XCTAssertEqual(sets[0].roundNumber, 1)
+        XCTAssertEqual(sets[1].targetReps, 10)
+        XCTAssertTrue(sets[1].repsProvided)
+        XCTAssertEqual(preview.workoutSessions[0].sets[2].durationSeconds, 2700)
+        XCTAssertTrue(preview.rawRecords[0].rowJSON.contains("duration_minutes"))
+    }
+
     func testStableIDsAreDeterministicForDedupe() {
         XCTAssertEqual(
             CSVWorkoutImporter.stableID(["a", "b", "c"]),

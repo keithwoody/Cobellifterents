@@ -24,6 +24,53 @@ final class WorkoutDisplayNamingTests: XCTestCase {
         )
     }
 
+    func testImportedATGSessionShowsExplicitProgramAssignment() {
+        let session = WorkoutSession(templateID: .atgImported, templateName: "ATG Mobility")
+        session.programAssignmentRawValue = ImportProgramAssignment.kneeAbilityZero.rawValue
+
+        XCTAssertEqual(WorkoutDisplayNaming.displayName(for: session), "Knee Ability Zero • ATG Mobility")
+    }
+
+    func testImportedATGProgramsAllDisplayCorrectly() {
+        for assignment in [ImportProgramAssignment.kneeAbilityZero, .ankleAbilityZero, .backAbilityZero] {
+            let session = WorkoutSession(templateID: .atgImported, templateName: "ATG Mobility")
+            session.programAssignmentRawValue = assignment.rawValue
+            XCTAssertEqual(WorkoutDisplayNaming.displayName(for: session), "\(assignment.displayName) • ATG Mobility")
+        }
+    }
+
+    func testAmbiguousImportedATGSessionDoesNotInventProgramAssignment() {
+        let session = WorkoutSession(templateID: .atgImported, templateName: "ATG Mobility")
+        session.programAssignmentRawValue = ImportProgramAssignment.unassignedAmbiguous.rawValue
+
+        XCTAssertEqual(WorkoutDisplayNaming.displayName(for: session), "ATG Mobility")
+    }
+
+    func testProgramNameUsesPersistedATGAssignment() {
+        let session = WorkoutSession(templateID: .atgImported, templateName: "ATG Mobility")
+        session.programAssignmentRawValue = ImportProgramAssignment.ankleAbilityZero.rawValue
+
+        XCTAssertEqual(WorkoutDisplayNaming.programName(for: session), "Ankle Ability Zero")
+    }
+
+    func testProgramNameExplicitlyFallsBackForLegacyUnassignedWorkout() {
+        let session = WorkoutSession(templateID: .atgImported, templateName: "ATG Mobility")
+
+        XCTAssertEqual(WorkoutDisplayNaming.programName(for: session), "Unassigned (program unclear)")
+    }
+
+    func testProgramNameFallsBackToBuiltInStrongLiftsProgram() {
+        let session = WorkoutSession(templateID: .strongLiftsA, templateName: "Workout A")
+
+        XCTAssertEqual(WorkoutDisplayNaming.programName(for: session), "StrongLifts 5×5")
+    }
+
+    func testProgramNameExtractsPersistedCustomProgram() {
+        let session = WorkoutSession(templateID: .strongLiftsA, templateName: "My Program • Workout A")
+
+        XCTAssertEqual(WorkoutDisplayNaming.programName(for: session), "My Program")
+    }
+
     func testSeededSessionKeepsCombinedCustomIdentityForPersistence() throws {
         let workout = ProgramWorkout(identity: "A", name: "Workout A", exercises: [])
         let template = try XCTUnwrap(ProgramWorkoutConversion.template(from: workout, programName: "Custom Program"))

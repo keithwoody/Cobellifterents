@@ -1,12 +1,29 @@
 import Foundation
 
 enum HistoryFormatting {
+    static func recentCompletedSessions(from sessions: [WorkoutSession], limit: Int = 5) -> [WorkoutSession] {
+        guard limit > 0 else { return [] }
+        return Array(sessions.filter(\.isComplete).prefix(limit))
+    }
+
+    static func shouldShowFullHistoryLink(for sessions: [WorkoutSession]) -> Bool {
+        !sessions.isEmpty
+    }
+
     static func weight(_ value: Double) -> String {
         "\(value.formatted(.number.precision(.fractionLength(value.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 1)))) lb"
     }
 
     static func setOutcome(completedReps: Int, targetReps: Int, weight: Double) -> String {
         "\(completedReps)/\(targetReps) reps · \(self.weight(weight))"
+    }
+
+    static func setOutcome(set: WorkoutSetRecord) -> String {
+        if let duration = set.durationSeconds {
+            return "\(duration) sec" + (set.weightProvided == true ? " · \(weight(set.weight))" : "")
+        }
+        let reps = set.repsProvided == true ? "\(set.completedReps)/\(set.targetReps) reps" : "No reps"
+        return reps + (set.weightProvided == true ? " · \(weight(set.weight))" : "")
     }
 
     static func sourceLabel(_ rawValue: String) -> String {

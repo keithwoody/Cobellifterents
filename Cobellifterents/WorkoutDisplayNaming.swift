@@ -26,7 +26,37 @@ enum WorkoutDisplayNaming {
     }
 
     static func displayName(for session: WorkoutSession) -> String {
-        displayName(programName: nil, workoutName: session.templateName, templateID: session.templateID)
+        displayName(
+            programName: session.importProgramAssignment?.displayName,
+            workoutName: session.templateName,
+            templateID: session.templateID
+        )
+    }
+
+    /// Returns the program associated with a persisted workout, including explicit
+    /// fallbacks for older sessions that predate program assignment metadata.
+    static func programName(for session: WorkoutSession) -> String {
+        if let rawAssignment = session.programAssignmentRawValue,
+           let assignment = ImportProgramAssignment(rawValue: rawAssignment) {
+            return assignment.displayName
+        }
+
+        if let templateID = session.templateID,
+           templateID == .strongLiftsA || templateID == .strongLiftsB,
+           isBareStrongLiftsWorkoutName(session.templateName) {
+            return builtInStrongLiftsProgramName
+        }
+
+        // Custom workouts persist their program in the display name so that the
+        // existing navigation and persistence contract remains unchanged.
+        let separator = Self.separator
+        if let separatorRange = session.templateName.range(of: separator) {
+            let prefix = String(session.templateName[..<separatorRange.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !prefix.isEmpty { return prefix }
+        }
+
+        return "Unassigned (program unclear)"
     }
 
     private static func isBareStrongLiftsWorkoutName(_ name: String) -> Bool {

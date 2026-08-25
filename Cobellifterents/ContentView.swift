@@ -15,10 +15,21 @@ struct ContentView: View {
     }
 
     private var selectedProgramWorkout: ProgramWorkout? {
-        activeStrongLiftsProgram.flatMap { StrongLiftsProgramSelection.nextWorkout(in: $0, after: sessions) }
+        nextScheduledWorkout?.workout
+    }
+
+    private var nextScheduledWorkout: UpcomingStartableWorkout? {
+        UpcomingSchedule.nextStartableWorkout(
+            strongLifts: activeStrongLiftsProgram ?? Program.strongLiftsDefault,
+            atg: programs.first { $0.id == activeSelection.atgID && $0.kind == .atg && $0.isValid },
+            completedSessions: sessions
+        )
     }
 
     private var nextTemplate: WorkoutTemplate {
+        if let nextScheduledWorkout {
+            return nextScheduledWorkout.template
+        }
         if let selectedProgramWorkout, let activeStrongLiftsProgram,
            let template = ProgramWorkoutConversion.template(from: selectedProgramWorkout, programName: activeStrongLiftsProgram.name) {
             return template
@@ -30,6 +41,25 @@ struct ContentView: View {
         HomeWorkoutLogic.shouldDisableStart(selectedProgramWorkout: selectedProgramWorkout, template: nextTemplate)
     }
 
+    private var upcomingEntries: [UpcomingScheduleEntry] {
+        UpcomingSchedule.entries(
+            strongLifts: activeStrongLiftsProgram ?? Program.strongLiftsDefault,
+            atg: programs.first { $0.id == activeSelection.atgID && $0.kind == .atg && $0.isValid },
+            completedSessions: sessions
+        )
+    }
+
+    private var nextWorkoutDisplayName: String {
+        WorkoutDisplayNaming.displayName(
+            programName: activeStrongLiftsProgram?.name,
+            workoutName: nextTemplate.name,
+            templateID: nextTemplate.id
+        )
+    }
+
+    private var recentCompletedSessions: [WorkoutSession] {
+        HistoryFormatting.recentCompletedSessions(from: sessions)
+    }
     var body: some View {
         NavigationStack {
             Group {
@@ -68,12 +98,24 @@ struct ContentView: View {
     private var startView: some View {
         List {
             Section("Next up") {
+                ForEach(upcomingEntries) { entry in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(entry.date, format: .dateTime.weekday(.wide).month(.abbreviated).day())
+                            .font(.headline)
+                        if entry.kind == .rest {
+                            Label("Rest day", systemImage: "bed.double.fill")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(entry.workoutNames, id: \.self) { workoutName in
+                                Label(workoutName, systemImage: "figure.strengthtraining.traditional")
+                            }
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(WorkoutDisplayNaming.displayName(
-                        programName: activeStrongLiftsProgram?.name,
-                        workoutName: nextTemplate.name,
-                        templateID: nextTemplate.id
-                    ))
+                    Text("Start \(nextWorkoutDisplayName)")
                     .font(.title2)
                     .bold()
                     if isEmptySelectedCustomWorkout {
@@ -92,10 +134,10 @@ struct ContentView: View {
             }
 
             Section("Recent history") {
-                if sessions.isEmpty {
+                if recentCompletedSessions.isEmpty {
                     ContentUnavailableView("No workouts yet", systemImage: "figure.strengthtraining.traditional", description: Text("Start Workout A to create the first StrongLifts-style log."))
                 } else {
-                    ForEach(sessions) { session in
+                    ForEach(recentCompletedSessions) { session in
                         NavigationLink {
                             WorkoutHistoryDetailView(session: session)
                         } label: {
@@ -105,6 +147,11 @@ struct ContentView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 HStack {
+                                    if let assignment = session.programAssignmentRawValue, session.programAssignmentID != nil {
+                                        Text(assignment)
+                                            .font(.caption)
+                                            .foregroundStyle(.purple)
+                                    }
                                     Text(session.isComplete ? "Complete" : "In progress")
                                         .font(.caption)
                                         .foregroundStyle(session.isComplete ? .green : .orange)
@@ -116,6 +163,11 @@ struct ContentView: View {
                                 }
                             }
                         }
+                    }
+                }
+                if HistoryFormatting.shouldShowFullHistoryLink(for: sessions) {
+                    NavigationLink("View full history") {
+                        WorkoutHistoryView()
                     }
                 }
             }
@@ -147,6 +199,50 @@ struct ContentView: View {
     }
 }
 
+private struct WorkoutHistoryRow: View {
+    let session: WorkoutSession
+
+    var body: some View {
+        NavigationLink {
+            WorkoutHistoryDetailView(session: session)
+        } label: {
+            VStack(alignment: .leading) {
+                Text(WorkoutDisplayNaming.displayName(for: session)).bold()
+                Text(session.startedAt, style: .date)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Text(session.isComplete ? "Complete" : "In progress")
+                        .font(.caption)
+                        .foregroundStyle(session.isComplete ? .green : .orange)
+                    if session.isImported {
+                        Text("Imported")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct WorkoutHistoryView: View {
+    @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var sessions: [WorkoutSession]
+
+    var body: some View {
+        List {
+            if sessions.isEmpty {
+                ContentUnavailableView("No workouts yet", systemImage: "figure.strengthtraining.traditional")
+            } else {
+                ForEach(sessions) { session in
+                    WorkoutHistoryRow(session: session)
+                }
+            }
+        }
+        .navigationTitle("Workout History")
+    }
+}
+
 struct WorkoutHistoryDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -174,8 +270,14 @@ struct WorkoutHistoryDetailView: View {
     var body: some View {
         List {
             Section {
+                LabeledContent("Program", value: WorkoutDisplayNaming.programName(for: session))
                 LabeledContent("Status", value: session.isComplete ? "Complete" : "In progress")
                 LabeledContent("Started", value: session.startedAt.formatted(date: .abbreviated, time: .shortened))
+                if let assignment = session.programAssignmentRawValue, session.programAssignmentID != nil {
+                    LabeledContent("Program", value: assignment)
+                } else if session.isImported {
+                    LabeledContent("Program", value: "Unassigned")
+                }
                 if let completedAt = session.completedAt {
                     LabeledContent("Finished", value: completedAt.formatted(date: .abbreviated, time: .shortened))
                 }
@@ -199,12 +301,14 @@ struct WorkoutHistoryDetailView: View {
             }
 
             ForEach(exerciseGroups, id: \.id) { group in
-                Section(group.name) {
+                let supersetLabel = group.sets.first?.supersetGroupID.map { "Superset \($0) · " } ?? ""
+                let roundsLabel = group.sets.compactMap(\.totalRounds).max().map { " · \($0) rounds" } ?? ""
+                Section(supersetLabel + group.name + roundsLabel) {
                     ForEach(group.sets) { set in
                         HStack {
-                            Text("Set \(set.setNumber)")
+                            Text(set.roundNumber.map { "Round \($0)" } ?? "Set \(set.setNumber)")
                             Spacer()
-                            Text(HistoryFormatting.setOutcome(completedReps: set.completedReps, targetReps: set.targetReps, weight: set.weight))
+                            Text(HistoryFormatting.setOutcome(set: set))
                                 .multilineTextAlignment(.trailing)
                                 .monospacedDigit()
                             Image(systemName: set.isComplete ? "checkmark.circle.fill" : "circle")
@@ -218,7 +322,7 @@ struct WorkoutHistoryDetailView: View {
                 Section("Notes") { Text(notes) }
             }
         }
-        .navigationTitle(session.templateName)
+        .navigationTitle(WorkoutDisplayNaming.displayName(for: session))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Delete", role: .destructive) { showingDeleteConfirmation = true }
@@ -312,7 +416,7 @@ struct WorkoutLoggingView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!session.sets.allSatisfy(\.isComplete))
         }
-        .navigationTitle(session.templateName)
+        .navigationTitle(WorkoutDisplayNaming.displayName(for: session))
     }
 
     private var bodyWeightBinding: Binding<String> {
