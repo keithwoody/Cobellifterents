@@ -86,7 +86,7 @@ struct ContentView: View {
                         }
                     }
                 }
-                Button("Start \(WorkoutDisplayNaming.displayName(programName: activeStrongLiftsProgram?.name, workoutName: nextTemplate.name, templateID: nextTemplate.id))") { startWorkout() }
+                Button("Start Workout") { startWorkout() }
                     .buttonStyle(.borderedProminent)
                     .disabled(isEmptySelectedCustomWorkout)
             }
