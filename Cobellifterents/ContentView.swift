@@ -25,6 +25,10 @@ struct ContentView: View {
         return StrongLiftsTemplates.template(after: sessions.first(where: { $0.isComplete })?.templateID)
     }
 
+    private var isEmptySelectedCustomWorkout: Bool {
+        HomeWorkoutLogic.shouldDisableStart(selectedProgramWorkout: selectedProgramWorkout, template: nextTemplate)
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -70,13 +74,19 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                     }
                     Text(nextTemplate.name).font(.title2).bold()
-                    ForEach(nextTemplate.exercises) { exercise in
-                        Text("\(exercise.name): \(exercise.targetSets)x\(exercise.targetReps)")
-                            .foregroundStyle(.secondary)
+                    if isEmptySelectedCustomWorkout {
+                        Label("This workout has no exercises. Go to Programs to add exercises.", systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    } else {
+                        ForEach(nextTemplate.exercises) { exercise in
+                            Text("\(exercise.name): \(exercise.targetSets)x\(exercise.targetReps)")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 Button("Start \(nextTemplate.name)") { startWorkout() }
                     .buttonStyle(.borderedProminent)
+                    .disabled(isEmptySelectedCustomWorkout)
             }
 
             Section("Recent history") {
@@ -108,9 +118,11 @@ struct ContentView: View {
                 }
             }
         }
+        .onAppear { refreshPrograms() }
     }
 
     private func startWorkout() {
+        guard !isEmptySelectedCustomWorkout else { return }
         let session = WorkoutSession.seeded(
             from: nextTemplate,
             history: sessions,

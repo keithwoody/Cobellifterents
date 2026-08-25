@@ -168,6 +168,12 @@ enum ProgramWorkoutConversion {
     }
 }
 
+enum HomeWorkoutLogic {
+    static func shouldDisableStart(selectedProgramWorkout: ProgramWorkout?, template: WorkoutTemplate) -> Bool {
+        selectedProgramWorkout != nil && template.exercises.isEmpty
+    }
+}
+
 struct ProgramsEnvelope: Codable, Equatable { var version: Int; var programs: [Program] }
 
 enum ProgramNormalization {

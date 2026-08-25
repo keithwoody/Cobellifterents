@@ -22,6 +22,26 @@ struct ProgramsView: View {
         List {
             ForEach(ProgramKind.allCases) { kind in
                 Section(kind.displayName) {
+                    if kind == .strongLifts {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                HStack(spacing: 6) {
+                                    Text("Built-in StrongLifts 5×5").font(.headline)
+                                    if activeSelection.strongLiftsID == nil {
+                                        Text("ACTIVE").font(.caption2.bold()).foregroundStyle(.green)
+                                    }
+                                }
+                                Text("Use the standard Workout A / Workout B template")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button(activeSelection.strongLiftsID == nil ? "Active" : "Use 5×5") {
+                                useBuiltInStrongLifts()
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(activeSelection.strongLiftsID == nil ? .green : .accentColor)
+                        }
+                    }
                     ForEach(programs.filter { $0.kind == kind }) { program in
                         HStack {
                             NavigationLink {
@@ -95,6 +115,13 @@ struct ProgramsView: View {
 
     private func refreshConflict() {
         conflictDays = Self.conflictDays(in: programs, selection: activeSelection)
+    }
+
+    private func useBuiltInStrongLifts() {
+        guard activeSelection.strongLiftsID != nil else { return }
+        activeSelection.strongLiftsID = nil
+        repository.saveActiveSelection(activeSelection)
+        refreshConflict()
     }
 
     private static func conflictDays(in programs: [Program], selection: ActiveProgramSelection) -> [TrainingDay] {

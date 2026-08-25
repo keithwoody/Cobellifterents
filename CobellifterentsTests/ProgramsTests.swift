@@ -167,6 +167,21 @@ final class ProgramsTests: XCTestCase {
         XCTAssertEqual(repository.loadActiveSelection(), ActiveProgramSelection())
     }
 
+    func testClearingStrongLiftsSelectionPreservesATGSelectionAndPersistsNil() {
+        let suite = "ProgramsClearActiveTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let repository = ProgramsRepository(defaults: defaults)
+        let atgID = UUID()
+        repository.saveActiveSelection(ActiveProgramSelection(strongLiftsID: UUID(), atgID: atgID))
+
+        var selection = repository.loadActiveSelection()
+        selection.strongLiftsID = nil
+        repository.saveActiveSelection(selection)
+
+        XCTAssertEqual(repository.loadActiveSelection(), ActiveProgramSelection(strongLiftsID: nil, atgID: atgID))
+    }
+
     func testActiveScheduleConflictDetection() {
         var strong = Program.strongLiftsDefault
         var atg = Program.atgDefault
@@ -193,6 +208,15 @@ final class ProgramsTests: XCTestCase {
         XCTAssertEqual(session.sets.map(\.targetReps), [8, 8, 10])
         XCTAssertEqual(session.sets.map(\.displayOrder), [0, 0, 1])
         XCTAssertEqual(session.sets.first?.weight, 45)
+    }
+
+    func testEmptyProgramWorkoutConvertsButCannotStartZeroSetSession() {
+        let workout = ProgramWorkout(identity: "A", name: "Empty A", exercises: [])
+        let template = try! XCTUnwrap(ProgramWorkoutConversion.template(from: workout))
+
+        XCTAssertTrue(template.exercises.isEmpty)
+        XCTAssertTrue(HomeWorkoutLogic.shouldDisableStart(selectedProgramWorkout: workout, template: template))
+        XCTAssertTrue(WorkoutSession.seeded(from: template, history: [], settings: nil).sets.isEmpty)
     }
 
     func testActiveStrongLiftsProgramSelectsNextABAfterCompletedHistory() {
