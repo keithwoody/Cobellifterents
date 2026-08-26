@@ -467,6 +467,19 @@ final class ProgramsRepository {
         defaults.set(data, forKey: key)
     }
 
+    /// Repairs stores created before built-in Programs were persisted. This is
+    /// intentionally explicit so normal repository loads remain backward
+    /// compatible with callers that manage their own program set.
+    @discardableResult
+    func ensureBuiltIns() -> [Program] {
+        var programs = load()
+        let missing = Program.defaults.filter { builtIn in !programs.contains { $0.id == builtIn.id } }
+        guard !missing.isEmpty else { return programs }
+        programs.append(contentsOf: missing)
+        save(programs)
+        return programs
+    }
+
     func loadActiveSelection() -> ActiveProgramSelection {
         guard let data = defaults.data(forKey: activeSelectionKey),
               let envelope = try? JSONDecoder().decode(ActiveProgramsEnvelope.self, from: data),

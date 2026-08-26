@@ -198,6 +198,9 @@ struct ProgramsView: View {
     private func clearWorkoutHistory() {
         do {
             try WorkoutHistoryClearer.clear(in: modelContext)
+            programs = repository.ensureBuiltIns()
+            activeSelection = repository.loadActiveSelection(for: programs)
+            refreshConflict()
         } catch {
             clearHistoryError = error.localizedDescription
         }
