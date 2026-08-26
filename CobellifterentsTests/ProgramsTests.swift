@@ -1,4 +1,5 @@
 import XCTest
+import SwiftData
 @testable import Cobellifterents
 
 final class ProgramsTests: XCTestCase {
@@ -32,7 +33,26 @@ final class ProgramsTests: XCTestCase {
         XCTAssertEqual(repository.load(), Program.defaults)
     }
 
-    func testRepositoryPersistsNewStrongLiftsExerciseAcrossSaveAndReload() {
+    func testGeneratedUpsertPreservesExplicitRenameAcrossReload() {
+        let suite = "ProgramsGeneratedRenameTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let repository = ProgramsRepository(defaults: defaults)
+        let sourceKey = "strongLiftsCSV:stronglifts.csv"
+        let generated = Program(kind: .strongLifts, name: "Imported StrongLifts2026-03-03", workouts: Program.strongLiftsDefault.workouts, generatedSourceKey: sourceKey)
+        _ = repository.upsertGenerated(generated)
+        var renamed = repository.load().first { $0.generatedSourceKey == sourceKey }!
+        renamed.name = "Quarantine 5x12"
+        repository.save([renamed])
+
+        let refreshed = Program(kind: .strongLifts, name: "Imported StrongLifts2026-03-03", workouts: Program.strongLiftsDefault.workouts, generatedSourceKey: sourceKey)
+        _ = repository.upsertGenerated(refreshed)
+
+        XCTAssertEqual(repository.load().first?.name, "Quarantine 5x12")
+        XCTAssertEqual(repository.load().first?.generatedSourceKey, sourceKey)
+    }
+
+    func testRepositoryPersistsNewStrongLiftsExerciseAcrossSaveAndReload() throws {
         let suite = "ProgramsEditorPersistenceTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -370,6 +390,70 @@ final class ProgramsTests: XCTestCase {
         program.trainingDays = []
         program.restDays = TrainingDay.allCases
         XCTAssertTrue(UpcomingSchedule.entries(for: program, limit: 3).isEmpty)
+    }
+
+    func testDeletingCustomProgramClearsAssignmentsPreservesHistoryAndActiveSelection() throws {
+        let suite = "ProgramsDeletionTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let repository = ProgramsRepository(defaults: defaults)
+        let custom = Program.new(kind: .atg, name: "Imported Ankle Program")
+        repository.save([Program.atgDefault, custom])
+        repository.saveActiveSelection(ActiveProgramSelection(atgID: custom.id))
+        let session = WorkoutSession(templateID: .atgImported, templateName: "ATG Training")
+        session.programAssignmentID = custom.id
+        session.programAssignmentRawValue = custom.name
+        session.programAssignmentEvidence = "import"
+
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        context.insert(session)
+        let remaining = try repository.delete(custom, sessions: [session], in: context)
+
+        XCTAssertEqual(remaining, [Program.atgDefault])
+        XCTAssertEqual(repository.load(), [Program.atgDefault])
+        XCTAssertNil(session.programAssignmentID)
+        XCTAssertNil(session.programAssignmentRawValue)
+        XCTAssertNil(session.programAssignmentEvidence)
+        XCTAssertNil(repository.loadActiveSelection().atgID)
+    }
+
+    func testDeletingBuiltInProgramIsRejected() throws {
+        let repository = ProgramsRepository(defaults: UserDefaults(suiteName: "ProgramsProtectedTests.\(UUID().uuidString)" )!)
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        XCTAssertThrowsError(try repository.delete(Program.atgDefault, sessions: [], in: context)) { error in
+            XCTAssertEqual(error as? ProgramDeletionError, .protectedProgram)
+        }
+    }
+
+    func testProgramDeletionSaveFailureRollsBackAssignmentAndRepositoryState() throws {
+        let suite = "ProgramsDeletionFailureTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let repository = ProgramsRepository(defaults: defaults)
+        let program = Program.new(kind: .atg, name: "To Keep")
+        repository.save([program])
+        repository.saveActiveSelection(ActiveProgramSelection(atgID: program.id))
+
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let session = WorkoutSession(templateID: .atgImported, templateName: "Imported")
+        session.importSourceRecordID = "record"
+        session.programAssignmentID = program.id
+        session.programAssignmentRawValue = program.name
+        session.programAssignmentEvidence = "manual"
+        context.insert(session)
+
+        XCTAssertThrowsError(try repository.delete(program, sessions: [session], in: context, saveContext: { throw NSError(domain: "ProgramsTests", code: 1) }))
+        XCTAssertEqual(repository.load().first?.id, program.id)
+        XCTAssertEqual(repository.loadActiveSelection().atgID, program.id)
+        XCTAssertEqual(session.programAssignmentID, program.id)
+        XCTAssertEqual(session.programAssignmentRawValue, program.name)
+        XCTAssertEqual(session.programAssignmentEvidence, "manual")
     }
 }
 

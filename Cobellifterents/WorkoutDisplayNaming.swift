@@ -25,9 +25,12 @@ enum WorkoutDisplayNaming {
         return workoutName
     }
 
-    static func displayName(for session: WorkoutSession) -> String {
-        displayName(
-            programName: session.importProgramAssignment?.displayName,
+    static func displayName(for session: WorkoutSession, programs: [Program] = ProgramsRepository().load()) -> String {
+        let assignedProgramName = session.programAssignmentID != nil
+            ? programName(for: session, programs: programs)
+            : session.importProgramAssignment?.displayName
+        return displayName(
+            programName: assignedProgramName,
             workoutName: session.templateName,
             templateID: session.templateID
         )
@@ -35,10 +38,26 @@ enum WorkoutDisplayNaming {
 
     /// Returns the program associated with a persisted workout, including explicit
     /// fallbacks for older sessions that predate program assignment metadata.
-    static func programName(for session: WorkoutSession) -> String {
+    static func programName(for session: WorkoutSession, programs: [Program] = ProgramsRepository().load()) -> String {
+        // Resolve by stable ID first so a renamed Program is reflected in every
+        // history screen. The cached raw value is only a compatibility fallback.
+        if let assignmentID = session.programAssignmentID,
+           let program = programs.first(where: { $0.id == assignmentID }) {
+            return program.name
+        }
         if let rawAssignment = session.programAssignmentRawValue,
-           let assignment = ImportProgramAssignment(rawValue: rawAssignment) {
+           let assignment = ImportProgramAssignment(rawValue: rawAssignment),
+           assignment != .unassignedAmbiguous {
             return assignment.displayName
+        }
+
+        // Manual assignment stores the selected Program name alongside its stable
+        // ID. It is intentionally not an ImportProgramAssignment raw value, and
+        // must win over the imported template/source name on every display path.
+        if session.programAssignmentID != nil,
+           let explicitName = session.programAssignmentRawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !explicitName.isEmpty {
+            return explicitName
         }
 
         if let templateID = session.templateID,

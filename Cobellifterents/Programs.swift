@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 enum ProgramKind: String, Codable, CaseIterable, Identifiable {
     case strongLifts
@@ -112,6 +113,7 @@ struct Program: Codable, Equatable, Identifiable {
         }
     }
     var isValid: Bool { validationError == nil }
+    var isBuiltIn: Bool { id == Self.strongLiftsDefaultID || id == Self.atgDefaultID }
 
     static func new(kind: ProgramKind, name: String) -> Program {
         let source = kind == .strongLifts ? strongLiftsDefault : atgDefault
@@ -437,6 +439,18 @@ struct ActiveProgramsEnvelope: Codable, Equatable {
     var selection: ActiveProgramSelection
 }
 
+enum ProgramDeletionError: Equatable, Error {
+    case protectedProgram
+}
+
+extension ProgramDeletionError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .protectedProgram: return "Built-in Programs cannot be deleted."
+        }
+    }
+}
+
 final class ProgramsRepository {
     private let defaults: UserDefaults
     private let key = "programs.v1"
@@ -451,6 +465,19 @@ final class ProgramsRepository {
     func save(_ programs: [Program]) {
         guard let data = try? JSONEncoder().encode(ProgramsEnvelope(version: 1, programs: programs)) else { return }
         defaults.set(data, forKey: key)
+    }
+
+    /// Repairs stores created before built-in Programs were persisted. This is
+    /// intentionally explicit so normal repository loads remain backward
+    /// compatible with callers that manage their own program set.
+    @discardableResult
+    func ensureBuiltIns() -> [Program] {
+        var programs = load()
+        let missing = Program.defaults.filter { builtIn in !programs.contains { $0.id == builtIn.id } }
+        guard !missing.isEmpty else { return programs }
+        programs.append(contentsOf: missing)
+        save(programs)
+        return programs
     }
 
     func loadActiveSelection() -> ActiveProgramSelection {
@@ -470,6 +497,47 @@ final class ProgramsRepository {
     }
 
     @discardableResult
+    func delete(_ program: Program, sessions: [WorkoutSession], in context: ModelContext, saveContext: (() throws -> Void)? = nil) throws -> [Program] {
+        guard !program.isBuiltIn else { throw ProgramDeletionError.protectedProgram }
+        let assignedSessions = sessions.filter { $0.programAssignmentID == program.id }
+        let previousAssignments = assignedSessions.map {
+            ($0, $0.programAssignmentID, $0.programAssignmentRawValue, $0.programAssignmentEvidence)
+        }
+        for session in assignedSessions {
+            session.programAssignmentID = nil
+            session.programAssignmentRawValue = nil
+            session.programAssignmentEvidence = nil
+        }
+        do {
+            if !assignedSessions.isEmpty {
+                if let saveContext { try saveContext() } else { try context.save() }
+            }
+        } catch {
+            context.rollback()
+            for (session, id, rawValue, evidence) in previousAssignments {
+                session.programAssignmentID = id
+                session.programAssignmentRawValue = rawValue
+                session.programAssignmentEvidence = evidence
+            }
+            throw error
+        }
+
+        let remaining = load().filter { $0.id != program.id }
+        let programs = remaining.isEmpty ? Program.defaults : remaining
+        save(programs)
+
+        var selection = loadActiveSelection()
+        if selection.id(for: program.kind) == program.id {
+            switch program.kind {
+            case .strongLifts: selection.strongLiftsID = nil
+            case .atg: selection.atgID = nil
+            }
+            saveActiveSelection(selection)
+        }
+        return programs
+    }
+
+    @discardableResult
     func toggleActive(_ program: Program) -> ActiveProgramSelection {
         let selection = ActiveProgramSelectionLogic.toggled(loadActiveSelection(), for: program)
         saveActiveSelection(selection)
@@ -482,7 +550,12 @@ final class ProgramsRepository {
         guard let sourceKey = program.generatedSourceKey else { return (programs, false) }
         if let index = programs.firstIndex(where: { $0.generatedSourceKey == sourceKey }) {
             let existingID = programs[index].id
-            programs[index] = Program(id: existingID, kind: program.kind, name: program.name, workouts: program.workouts, trainingDays: program.trainingDays, restDays: program.restDays, generatedSourceKey: sourceKey)
+            // Generated content can be refreshed on every import, but the name is
+            // user-owned once the Program has been created. Do not make an import
+            // idempotency pass silently undo an explicit rename.
+            let existingName = programs[index].name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = existingName.isEmpty ? program.name : programs[index].name
+            programs[index] = Program(id: existingID, kind: program.kind, name: name, workouts: program.workouts, trainingDays: program.trainingDays, restDays: program.restDays, generatedSourceKey: sourceKey)
             save(programs)
             return (programs, false)
         }

@@ -93,6 +93,9 @@ struct ContentView: View {
             refreshPrograms()
             activeSession = WorkoutSessionRecovery.resumableSession(from: sessions)
         }
+        .onChange(of: sessions.map(\.id)) { _, _ in
+            activeSession = WorkoutSessionRecovery.resumableSession(from: sessions)
+        }
     }
 
     private var startView: some View {
@@ -139,16 +142,16 @@ struct ContentView: View {
                 } else {
                     ForEach(recentCompletedSessions) { session in
                         NavigationLink {
-                            WorkoutHistoryDetailView(session: session)
+                            WorkoutHistoryDetailView(session: session, programs: programs)
                         } label: {
                             VStack(alignment: .leading) {
-                                Text(WorkoutDisplayNaming.displayName(for: session)).bold()
+                                Text(WorkoutDisplayNaming.displayName(for: session, programs: programs)).bold()
                                 Text(session.startedAt, style: .date)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 HStack {
-                                    if let assignment = session.programAssignmentRawValue, session.programAssignmentID != nil {
-                                        Text(assignment)
+                                    if session.programAssignmentID != nil {
+                                        Text(WorkoutDisplayNaming.programName(for: session, programs: programs))
                                             .font(.caption)
                                             .foregroundStyle(.purple)
                                     }
@@ -201,13 +204,14 @@ struct ContentView: View {
 
 private struct WorkoutHistoryRow: View {
     let session: WorkoutSession
+    let programs: [Program]
 
     var body: some View {
         NavigationLink {
-            WorkoutHistoryDetailView(session: session)
+            WorkoutHistoryDetailView(session: session, programs: programs)
         } label: {
             VStack(alignment: .leading) {
-                Text(WorkoutDisplayNaming.displayName(for: session)).bold()
+                Text(WorkoutDisplayNaming.displayName(for: session, programs: programs)).bold()
                 Text(session.startedAt, style: .date)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -228,6 +232,8 @@ private struct WorkoutHistoryRow: View {
 
 struct WorkoutHistoryView: View {
     @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var sessions: [WorkoutSession]
+    @State private var programs: [Program] = []
+    private let programsRepository = ProgramsRepository()
 
     var body: some View {
         List {
@@ -235,11 +241,12 @@ struct WorkoutHistoryView: View {
                 ContentUnavailableView("No workouts yet", systemImage: "figure.strengthtraining.traditional")
             } else {
                 ForEach(sessions) { session in
-                    WorkoutHistoryRow(session: session)
+                    WorkoutHistoryRow(session: session, programs: programs)
                 }
             }
         }
         .navigationTitle("Workout History")
+        .onAppear { programs = programsRepository.load() }
     }
 }
 
@@ -247,6 +254,7 @@ struct WorkoutHistoryDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     let session: WorkoutSession
+    var programs: [Program] = ProgramsRepository().load()
     @State private var showingDeleteConfirmation = false
 
     private var exerciseGroups: [(id: String, name: String, sets: [WorkoutSetRecord])] {
@@ -270,14 +278,9 @@ struct WorkoutHistoryDetailView: View {
     var body: some View {
         List {
             Section {
-                LabeledContent("Program", value: WorkoutDisplayNaming.programName(for: session))
+                LabeledContent("Program", value: WorkoutDisplayNaming.programName(for: session, programs: programs))
                 LabeledContent("Status", value: session.isComplete ? "Complete" : "In progress")
                 LabeledContent("Started", value: session.startedAt.formatted(date: .abbreviated, time: .shortened))
-                if let assignment = session.programAssignmentRawValue, session.programAssignmentID != nil {
-                    LabeledContent("Program", value: assignment)
-                } else if session.isImported {
-                    LabeledContent("Program", value: "Unassigned")
-                }
                 if let completedAt = session.completedAt {
                     LabeledContent("Finished", value: completedAt.formatted(date: .abbreviated, time: .shortened))
                 }
@@ -322,7 +325,7 @@ struct WorkoutHistoryDetailView: View {
                 Section("Notes") { Text(notes) }
             }
         }
-        .navigationTitle(WorkoutDisplayNaming.displayName(for: session))
+        .navigationTitle(WorkoutDisplayNaming.displayName(for: session, programs: programs))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Delete", role: .destructive) { showingDeleteConfirmation = true }

@@ -1,7 +1,29 @@
 import XCTest
 @testable import Cobellifterents
-
 final class WorkoutDisplayNamingTests: XCTestCase {
+    func testManualRenamedImportedProgramWinsOverGeneratedWorkoutName() {
+        let session = WorkoutSession(templateID: .strongLiftsA, templateName: "Workout A")
+        session.programAssignmentID = UUID()
+        session.programAssignmentRawValue = "Quarantine 5x12"
+
+        XCTAssertEqual(WorkoutDisplayNaming.programName(for: session), "Quarantine 5x12")
+        XCTAssertEqual(WorkoutDisplayNaming.displayName(for: session), "Quarantine 5x12 • Workout A")
+    }
+
+    func testHistoryResolvesCurrentProgramNameByStableID() {
+        let program = Program(id: UUID(), kind: .atg, name: "Renamed Knee Program", workouts: [], trainingDays: [])
+        let session = WorkoutSession(templateID: .atgImported, templateName: "Knee Ability Zero")
+        session.programAssignmentID = program.id
+        session.programAssignmentRawValue = "Knee Ability Zero"
+
+        XCTAssertEqual(WorkoutDisplayNaming.programName(for: session, programs: [program]), "Renamed Knee Program")
+        XCTAssertEqual(WorkoutDisplayNaming.displayName(for: session, programs: [program]), "Renamed Knee Program • Knee Ability Zero")
+    }
+    func testLegacyUnassignedSessionKeepsFallbackName() {
+        let session = WorkoutSession(templateID: .atgImported, templateName: "Imported Workout")
+        XCTAssertEqual(WorkoutDisplayNaming.displayName(for: session), "Imported Workout")
+    }
+
     func testCombinesCustomProgramAndWorkoutNames() {
         XCTAssertEqual(
             WorkoutDisplayNaming.combined(programName: "My StrongLifts", workoutName: "Workout A"),

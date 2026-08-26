@@ -1,12 +1,21 @@
 import SwiftUI
+import SwiftData
 
 struct ProgramsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var sessions: [WorkoutSession]
     @State private var programs: [Program]
     @State private var activeSelection: ActiveProgramSelection
     @State private var creating = false
     @State private var conflictDays: [TrainingDay] = []
     @State private var showingConflict = false
     @State private var showingInvalidProgram = false
+    @State private var showingDeletionError = false
+    @State private var deletionErrorMessage = ""
+    @State private var programPendingDeletion: Program?
+    @State private var showingProgramDeleteConfirmation = false
+    @State private var showingClearHistoryConfirmation = false
+    @State private var clearHistoryError: String?
     private let repository: ProgramsRepository
 
     init(repository: ProgramsRepository = ProgramsRepository()) {
@@ -45,7 +54,7 @@ struct ProgramsView: View {
                     ForEach(programs.filter { $0.kind == kind }) { program in
                         HStack {
                             NavigationLink {
-                                ProgramDetailView(program: program, onSave: save)
+                                ProgramDetailView(program: program, onSave: save, onDelete: delete)
                             } label: {
                                 VStack(alignment: .leading) {
                                     HStack(spacing: 6) {
@@ -62,6 +71,15 @@ struct ProgramsView: View {
                             Button(activeSelection.id(for: kind) == program.id ? "Active" : "Set active") { setActive(program) }
                                 .buttonStyle(.bordered)
                                 .tint(activeSelection.id(for: kind) == program.id ? .green : .accentColor)
+                            if !program.isBuiltIn {
+                                Button(role: .destructive) {
+                                    programPendingDeletion = program
+                                    showingProgramDeleteConfirmation = true
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .accessibilityLabel("Delete \(program.name)")
+                            }
                         }
                     }
                 }
@@ -71,6 +89,14 @@ struct ProgramsView: View {
                     Label("Active programs overlap on \(conflictDays.map(\.shortName).joined(separator: ", ")). Consider changing one program's training days.", systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
                 }
+            }
+            Section("Danger zone") {
+                Button("Clear Workout History", role: .destructive) {
+                    showingClearHistoryConfirmation = true
+                }
+                Text("Deletes all workouts, sets, and imported source records. Programs and settings are preserved.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .navigationTitle("Programs")
@@ -90,6 +116,37 @@ struct ProgramsView: View {
         } message: {
             Text("Fix this program's validation issues before marking it active.")
         }
+        .alert("Program could not be deleted", isPresented: $showingDeletionError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(deletionErrorMessage)
+        }
+        .confirmationDialog("Delete Program?", isPresented: $showingProgramDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete Program", role: .destructive) {
+                if let programPendingDeletion {
+                    _ = delete(programPendingDeletion)
+                }
+                programPendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) {
+                programPendingDeletion = nil
+            }
+        } message: {
+            Text("Workout history will be preserved and marked unassigned.")
+        }
+        .confirmationDialog("Clear all workout history?", isPresented: $showingClearHistoryConfirmation, titleVisibility: .visible) {
+            Button("Clear Workout History", role: .destructive) {
+                clearWorkoutHistory()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This permanently deletes every workout session, all dependent sets, and all imported raw/provenance records. Programs, active Program selections, and other settings will remain.")
+        }
+        .alert("Could Not Clear Workout History", isPresented: clearHistoryErrorBinding) {
+            Button("OK", role: .cancel) { clearHistoryError = nil }
+        } message: {
+            Text(clearHistoryError ?? "The workout history was not changed.")
+        }
     }
 
     private func save(_ program: Program) {
@@ -97,6 +154,20 @@ struct ProgramsView: View {
         programs[index] = program
         repository.save(programs)
         refreshConflict()
+    }
+
+    private func delete(_ program: Program) -> Bool {
+        guard !program.isBuiltIn else { return false }
+        do {
+            programs = try repository.delete(program, sessions: sessions, in: modelContext)
+            activeSelection = repository.loadActiveSelection(for: programs)
+            refreshConflict()
+            return true
+        } catch {
+            deletionErrorMessage = error.localizedDescription
+            showingDeletionError = true
+            return false
+        }
     }
 
     private func setActive(_ program: Program) {
@@ -124,6 +195,24 @@ struct ProgramsView: View {
         refreshConflict()
     }
 
+    private func clearWorkoutHistory() {
+        do {
+            try WorkoutHistoryClearer.clear(in: modelContext)
+            programs = repository.ensureBuiltIns()
+            activeSelection = repository.loadActiveSelection(for: programs)
+            refreshConflict()
+        } catch {
+            clearHistoryError = error.localizedDescription
+        }
+    }
+
+    private var clearHistoryErrorBinding: Binding<Bool> {
+        Binding(
+            get: { clearHistoryError != nil },
+            set: { if !$0 { clearHistoryError = nil } }
+        )
+    }
+
     private static func conflictDays(in programs: [Program], selection: ActiveProgramSelection) -> [TrainingDay] {
         let strong = programs.first { $0.id == selection.strongLiftsID }
         let atg = programs.first { $0.id == selection.atgID }
@@ -134,14 +223,18 @@ struct ProgramsView: View {
 }
 
 struct ProgramDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     let program: Program
     let onSave: (Program) -> Void
+    let onDelete: (Program) -> Bool
     @State private var editing = false
+    @State private var showingDeleteConfirmation = false
     @State private var displayedProgram: Program
 
-    init(program: Program, onSave: @escaping (Program) -> Void) {
+    init(program: Program, onSave: @escaping (Program) -> Void, onDelete: @escaping (Program) -> Bool) {
         self.program = program
         self.onSave = onSave
+        self.onDelete = onDelete
         _displayedProgram = State(initialValue: program)
     }
 
@@ -169,7 +262,22 @@ struct ProgramDetailView: View {
             if let error = displayedProgram.validationError { Text(validationMessage(error)).foregroundStyle(.red) }
         }
         .navigationTitle(displayedProgram.name)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Edit") { editing = true } } }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { Button("Edit") { editing = true } }
+            if !displayedProgram.isBuiltIn {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Delete", role: .destructive) { showingDeleteConfirmation = true }
+                }
+            }
+        }
+        .confirmationDialog("Delete Program?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete Program", role: .destructive) {
+                if onDelete(displayedProgram) { dismiss() }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("All workout history will be preserved and marked unassigned.")
+        }
         .sheet(isPresented: $editing) {
             ProgramEditorView(program: displayedProgram, onSave: { savedProgram in
                 displayedProgram = savedProgram

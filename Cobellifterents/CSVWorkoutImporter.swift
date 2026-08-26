@@ -112,8 +112,9 @@ enum CSVWorkoutImporter {
         for (index, row) in rows.dropFirst().enumerated() {
             let dict = CSVParser.dictionary(header: header, row: row, rowNumber: index + 2)
             let rowNumber = index + 2
-            let dateText = dict["date", default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
-            let occurredAt = parseISODate(dateText)
+            let atgRow = canonicalATGRow(dict)
+            let dateText = atgRow["date", default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+            let occurredAt = parseATGDate(dateText)
             // Provenance is independent of whether a row can be converted into a
             // native session. Retain every source row before validating its date or
             // applying the optional native-session range.
@@ -136,15 +137,15 @@ enum CSVWorkoutImporter {
             }
             if let startDate, occurredAt < startDate { continue }
             if let endDate, occurredAt > endDate { continue }
-            let workoutType = dict["workout_type", default: "Strength Training"].trimmingCharacters(in: .whitespacesAndNewlines)
+            let workoutType = atgRow["workout_type", default: "Strength Training"].trimmingCharacters(in: .whitespacesAndNewlines)
             let groupID = stableID(["atg-session", sourceFileName, ISODateOnly.string(from: occurredAt), workoutType])
             if grouped[groupID] == nil { groupOrder.append(groupID) }
-            grouped[groupID, default: []].append(dict)
+            grouped[groupID, default: []].append(atgRow)
         }
 
         let sessions = groupOrder.compactMap { groupID -> WorkoutSessionDraft? in
             guard let rows = grouped[groupID] else { return nil }
-            guard let first = rows.first, let date = parseISODate(first["date", default: ""]) else { return nil }
+            guard let first = rows.first, let date = parseATGDate(first["date", default: ""]) else { return nil }
             let sourceRecordID = stableID(["atg-session", sourceFileName, ISODateOnly.string(from: date), first["workout_type", default: "Strength Training"]])
             let sets = rows.enumerated().map { offset, row in
                 let exerciseName = row["exercise", default: "Exercise"].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -189,6 +190,36 @@ enum CSVWorkoutImporter {
         return ImportPreview(sourceKind: .atgCSV, rawRecords: rawRecords, workoutSessions: ATGProgramPlanner.assignPrograms(to: sessions), issues: issues)
     }
 
+    /// ATG exports use title case, spaces, underscores, and several aliases for
+    /// the same field. Canonicalize structural fields while retaining the raw row.
+    private static func canonicalATGRow(_ row: [String: String]) -> [String: String] {
+        var result = row
+        let aliases: [String: [String]] = [
+            "date": ["date", "dateutc", "workoutdate", "workoutdateutc", "workoutdatetime", "completeddate", "startdate", "performedat", "timestamp"],
+            "workout_type": ["workouttype", "sessiontype", "workoutcategory", "category"],
+            "exercise": ["exercise", "exercisename", "movement", "movementname"],
+            "repetitions": ["repetitions", "reps", "repcount", "completedreps"],
+            "resistance": ["resistance", "weight", "load"],
+            "resistance_unit": ["resistanceunit", "weightunit", "loadunit"],
+            "duration_seconds": ["durationseconds", "timeseconds"],
+            "duration_minutes": ["durationminutes", "timeminutes"],
+            "duration_ms": ["durationms", "durationmilliseconds"],
+            "note": ["note", "notes", "comment"],
+            "program": ["program", "programname"]
+        ]
+        for (canonical, expected) in aliases {
+            guard result[canonical] == nil,
+                  let entry = row.first(where: { expected.contains(normalizedHeader($0.key)) }) else { continue }
+            result[canonical] = entry.value
+        }
+        return result
+    }
+
+    private static func parseATGDate(_ value: String) -> Date? {
+        if let date = parseISODate(value) { return date }
+        return ISO8601DateFormatter().date(from: value)
+    }
+
     private static func inferATGProgram(from row: [String: String]) -> ImportProgramAssignment {
         guard let value = atgProgramValue(from: row) else { return .unassignedAmbiguous }
         switch slug(value) {
@@ -200,10 +231,21 @@ enum CSVWorkoutImporter {
     }
 
     private static func atgProgramValue(from row: [String: String]) -> String? {
-        for key in ["program", "program_name", "programName"] {
-            if let value = row[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty { return value }
+        // ATG exports have used both `Program` and `Program Name`, with
+        // differences in case, spacing, and underscore/camel-case spelling.
+        // Match only those explicit program fields; do not infer a program
+        // from workout type or exercise names.
+        for expectedKey in ["program", "programname"] {
+            if let entry = row.first(where: { normalizedHeader($0.key) == expectedKey }) {
+                let value = entry.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !value.isEmpty { return value }
+            }
         }
         return nil
+    }
+
+    private static func normalizedHeader(_ header: String) -> String {
+        header.lowercased().filter { $0.isLetter || $0.isNumber }
     }
 
     private static func atgProgramEvidence(from row: [String: String]) -> String? {

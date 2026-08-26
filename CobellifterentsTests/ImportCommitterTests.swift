@@ -3,6 +3,65 @@ import XCTest
 @testable import Cobellifterents
 
 final class ImportCommitterTests: XCTestCase {
+    func testClearWorkoutHistoryDeletesSessionsSetsAndRawRecords() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let session = WorkoutSession(templateID: .atgImported, templateName: "Imported")
+        session.importSourceRecordID = "source-1"
+        session.sets = [WorkoutSetRecord(exerciseID: "pushup", exerciseName: "Pushup", setNumber: 1, targetReps: 10, weight: 0)]
+        context.insert(session)
+        context.insert(ImportedRawRecord(sourceKind: .atgCSV, sourceFileName: "ATG.csv", sourceRowNumber: 1, sourceRecordID: "source-1", rowJSON: "{}", occurredAt: nil))
+        try context.save()
+
+        try WorkoutHistoryClearer.clear(in: context)
+
+        XCTAssertTrue(try context.fetch(FetchDescriptor<WorkoutSession>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<WorkoutSetRecord>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<ImportedRawRecord>()).isEmpty)
+    }
+
+    func testClearWorkoutHistoryPreservesProgramsActiveSelectionAndSettings() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let suite = "ImportCommitterTests.clearPreservesConfig.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let programsRepository = ProgramsRepository(defaults: defaults)
+        let programs = programsRepository.load()
+        let selection = ActiveProgramSelection(strongLiftsID: programs[0].id, atgID: programs[1].id)
+        programsRepository.saveActiveSelection(selection)
+        let progressionRepository = ProgressionSettingsRepository(defaults: defaults)
+        var settings = progressionRepository.load()
+        settings[0].currentWeight = 135
+        progressionRepository.save(settings)
+        context.insert(WorkoutSession(templateID: .strongLiftsA, templateName: "Workout A"))
+        try context.save()
+
+        try WorkoutHistoryClearer.clear(in: context)
+
+        XCTAssertEqual(programsRepository.load(), programs)
+        XCTAssertEqual(programsRepository.loadActiveSelection(for: programs), selection)
+        XCTAssertEqual(progressionRepository.load()[0].currentWeight, 135)
+    }
+
+    func testClearWorkoutHistoryIsSafeWhenRepeatedAndCleanAfterNewContext() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        context.insert(WorkoutSession(templateID: .strongLiftsA, templateName: "Workout A"))
+        try context.save()
+
+        try WorkoutHistoryClearer.clear(in: context)
+        try WorkoutHistoryClearer.clear(in: context)
+
+        let relaunchedContext = ModelContext(container)
+        XCTAssertTrue(try relaunchedContext.fetch(FetchDescriptor<WorkoutSession>()).isEmpty)
+        XCTAssertTrue(try relaunchedContext.fetch(FetchDescriptor<WorkoutSetRecord>()).isEmpty)
+        XCTAssertTrue(try relaunchedContext.fetch(FetchDescriptor<ImportedRawRecord>()).isEmpty)
+    }
+
     func testCommitInsertsRawRecordsAndNativeSessionsOnlyOnce() throws {
         let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -33,6 +92,41 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
         XCTAssertEqual(sessions.count, 1)
         XCTAssertEqual(sessions[0].isImported, true)
         XCTAssertEqual(sessions[0].sets.count, 5)
+    }
+
+    func testStrongLiftsImportAssignsGeneratedProgramAndRepairsOnReimport() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let suiteName = "ImportCommitterTests.strongLiftsGeneratedAssignment"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let repository = ProgramsRepository(defaults: defaults)
+        let csv = """
+        Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Sets×Reps,Sets×Time,Top Set (Reps×LB),e1RM (LB),Reps,Volume (LB),Workout Volume (LB),Duration (hours),Start Time (h:mm),End Time (h:mm),Notes,Set 1 (Reps),Set 1 (LB),Set 2 (Reps),Set 2 (LB),Set 3 (Reps),Set 3 (LB),Set 4 (Reps),Set 4 (LB),Set 5 (Reps),Set 5 (LB)
+        2026/08/24,1,Workout A,StrongLifts 5x5,175,Squat,5×5,,5×100,120,25,2500,2500,0.5,10:02 AM,10:32 AM,,5,100,5,100,5,100,5,100,5,100
+        """
+        let preview = CSVWorkoutImporter.previewStrongLiftsCSV(csv, sourceFileName: "StrongLifts20260824.csv")
+        let generatedName = "Imported StrongLifts20260824"
+        let first = try ImportCommitter.commit(preview, into: context, programsRepository: repository)
+        let generated = try XCTUnwrap(repository.load().first { $0.name == generatedName })
+        var session = try XCTUnwrap(context.fetch(FetchDescriptor<WorkoutSession>()).first)
+        XCTAssertEqual(first.insertedWorkoutSessions, 1)
+        XCTAssertEqual(session.programAssignmentID, generated.id)
+        XCTAssertEqual(session.programAssignmentRawValue, generatedName)
+        XCTAssertEqual(WorkoutProgramPresentation.name(for: session, programs: repository.load()), generatedName)
+
+        session.programAssignmentID = nil
+        session.programAssignmentRawValue = nil
+        session.programAssignmentEvidence = nil
+        try context.save()
+        let second = try ImportCommitter.commit(preview, into: context, programsRepository: repository)
+        session = try XCTUnwrap(context.fetch(FetchDescriptor<WorkoutSession>()).first)
+        XCTAssertEqual(second.insertedWorkoutSessions, 0)
+        XCTAssertEqual(second.skippedWorkoutSessions, 1)
+        XCTAssertEqual(session.programAssignmentID, generated.id)
+        XCTAssertEqual(session.programAssignmentRawValue, generatedName)
+        XCTAssertEqual(session.importSourceRecordID, preview.workoutSessions[0].sourceRecordID)
     }
 
     func testImportedSessionPreservesFirstSeenExerciseOrder() throws {
@@ -95,13 +189,16 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         let repository = ProgramsRepository(defaults: defaults)
-        let csv = "workout_type,program,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
+        let csv = "workout_type,Program Name,exercise,date,repetitions,resistance,resistance_unit,duration_seconds,duration_ms,note\n" +
             "Strength Training,Ankle Ability Zero,ATG Pushup,2024-01-11,10,0,lbs,30,30000,source note\n" +
             "Strength Training,Unknown Plan,ATG Split Squat,2024-01-12,5,0,lbs,0,0,\n"
 
         let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG.csv")
         XCTAssertEqual(preview.workoutSessions.map(\.programAssignment), [.ankleAbilityZero, .unassignedAmbiguous])
         _ = try ImportCommitter.commit(preview, into: context, programsRepository: repository)
+        let secondCommit = try ImportCommitter.commit(preview, into: context, programsRepository: repository)
+        XCTAssertEqual(secondCommit.insertedRawRecords, 0)
+        XCTAssertEqual(secondCommit.insertedWorkoutSessions, 0)
 
         let sessions = try context.fetch(FetchDescriptor<WorkoutSession>()).sorted { $0.startedAt < $1.startedAt }
         let programsAfterCommit = repository.load()
@@ -115,6 +212,34 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
 
         let reloadedPrograms = ProgramsRepository(defaults: defaults).load()
         XCTAssertEqual(WorkoutProgramPresentation.name(for: sessions[0], programs: reloadedPrograms), "Ankle Ability Zero")
+    }
+
+    func testRepeatedATGImportCreatesAndPersistsAllExplicitPrograms() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let suiteName = "ImportCommitterTests.repeatedExplicitATG"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let repository = ProgramsRepository(defaults: defaults)
+        let csv = "Workout Date,Workout Category,Program Name,Exercise Name,Reps,Weight,Weight Unit\n" +
+            "2024-01-20,Strength Training,Knee Ability Zero,Step Up,5,0,lbs\n" +
+            "2024-01-21,Strength Training,Back Ability Zero,Back Extension,5,0,lbs\n" +
+            "2024-01-22,Strength Training,Ankle Ability Zero,Calf Raise,5,0,lbs\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG-export.csv")
+
+        let first = try ImportCommitter.commit(preview, into: context, programsRepository: repository)
+        let second = try ImportCommitter.commit(preview, into: context, programsRepository: repository)
+        XCTAssertEqual(first.insertedWorkoutSessions, 3)
+        XCTAssertEqual(second.insertedWorkoutSessions, 0)
+        XCTAssertEqual(second.skippedWorkoutSessions, 3)
+
+        let programs = ProgramsRepository(defaults: defaults).load()
+        let sessions = try context.fetch(FetchDescriptor<WorkoutSession>()).sorted { $0.startedAt < $1.startedAt }
+        XCTAssertEqual(sessions.count, 3)
+        XCTAssertEqual(sessions.map { WorkoutProgramPresentation.name(for: $0, programs: programs) }, ["Knee Ability Zero", "Back Ability Zero", "Ankle Ability Zero"])
+        XCTAssertTrue(sessions.allSatisfy { $0.programAssignmentID != nil })
     }
 
     func testIndividualAssignmentPersistsWithoutChangingImportData() throws {
