@@ -10,6 +10,8 @@ struct ProgramsView: View {
     @State private var conflictDays: [TrainingDay] = []
     @State private var showingConflict = false
     @State private var showingInvalidProgram = false
+    @State private var showingDeletionError = false
+    @State private var deletionErrorMessage = ""
     private let repository: ProgramsRepository
 
     init(repository: ProgramsRepository = ProgramsRepository()) {
@@ -93,6 +95,11 @@ struct ProgramsView: View {
         } message: {
             Text("Fix this program's validation issues before marking it active.")
         }
+        .alert("Program could not be deleted", isPresented: $showingDeletionError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(deletionErrorMessage)
+        }
     }
 
     private func save(_ program: Program) {
@@ -102,12 +109,18 @@ struct ProgramsView: View {
         refreshConflict()
     }
 
-    private func delete(_ program: Program) {
-        guard !program.isBuiltIn else { return }
-        guard let updated = try? repository.delete(program, sessions: sessions, in: modelContext) else { return }
-        programs = updated
-        activeSelection = repository.loadActiveSelection(for: programs)
-        refreshConflict()
+    private func delete(_ program: Program) -> Bool {
+        guard !program.isBuiltIn else { return false }
+        do {
+            programs = try repository.delete(program, sessions: sessions, in: modelContext)
+            activeSelection = repository.loadActiveSelection(for: programs)
+            refreshConflict()
+            return true
+        } catch {
+            deletionErrorMessage = error.localizedDescription
+            showingDeletionError = true
+            return false
+        }
     }
 
     private func setActive(_ program: Program) {
@@ -148,12 +161,12 @@ struct ProgramDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let program: Program
     let onSave: (Program) -> Void
-    let onDelete: (Program) -> Void
+    let onDelete: (Program) -> Bool
     @State private var editing = false
     @State private var showingDeleteConfirmation = false
     @State private var displayedProgram: Program
 
-    init(program: Program, onSave: @escaping (Program) -> Void, onDelete: @escaping (Program) -> Void) {
+    init(program: Program, onSave: @escaping (Program) -> Void, onDelete: @escaping (Program) -> Bool) {
         self.program = program
         self.onSave = onSave
         self.onDelete = onDelete
@@ -194,8 +207,7 @@ struct ProgramDetailView: View {
         }
         .confirmationDialog("Delete Program?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
             Button("Delete Program", role: .destructive) {
-                onDelete(displayedProgram)
-                dismiss()
+                if onDelete(displayedProgram) { dismiss() }
             }
             Button("Cancel", role: .cancel) { }
         } message: {

@@ -443,6 +443,14 @@ enum ProgramDeletionError: Equatable, Error {
     case protectedProgram
 }
 
+extension ProgramDeletionError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .protectedProgram: return "Built-in Programs cannot be deleted."
+        }
+    }
+}
+
 final class ProgramsRepository {
     private let defaults: UserDefaults
     private let key = "programs.v1"
@@ -476,18 +484,34 @@ final class ProgramsRepository {
     }
 
     @discardableResult
-    func delete(_ program: Program, sessions: [WorkoutSession] = [], in context: ModelContext? = nil) throws -> [Program] {
+    func delete(_ program: Program, sessions: [WorkoutSession], in context: ModelContext, saveContext: (() throws -> Void)? = nil) throws -> [Program] {
         guard !program.isBuiltIn else { throw ProgramDeletionError.protectedProgram }
-        let remaining = load().filter { $0.id != program.id }
-        let programs = remaining.isEmpty ? Program.defaults : remaining
-        save(programs)
-
-        for session in sessions where session.programAssignmentID == program.id {
+        let assignedSessions = sessions.filter { $0.programAssignmentID == program.id }
+        let previousAssignments = assignedSessions.map {
+            ($0, $0.programAssignmentID, $0.programAssignmentRawValue, $0.programAssignmentEvidence)
+        }
+        for session in assignedSessions {
             session.programAssignmentID = nil
             session.programAssignmentRawValue = nil
             session.programAssignmentEvidence = nil
         }
-        if let context { try context.save() }
+        do {
+            if !assignedSessions.isEmpty {
+                if let saveContext { try saveContext() } else { try context.save() }
+            }
+        } catch {
+            context.rollback()
+            for (session, id, rawValue, evidence) in previousAssignments {
+                session.programAssignmentID = id
+                session.programAssignmentRawValue = rawValue
+                session.programAssignmentEvidence = evidence
+            }
+            throw error
+        }
+
+        let remaining = load().filter { $0.id != program.id }
+        let programs = remaining.isEmpty ? Program.defaults : remaining
+        save(programs)
 
         var selection = loadActiveSelection()
         if selection.id(for: program.kind) == program.id {
