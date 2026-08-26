@@ -215,6 +215,20 @@ Strength Training,ATG Split Squat,2024-01-11,5,0,lbs,0,0,3x10 instead of 5x5
         )
     }
 
+    func testATGImportSupportsTitleCaseAliasesUsedByExports() {
+        let csv = "Workout Date,Workout Category,Program Name,Exercise Name,Reps,Weight,Weight Unit\n" +
+            "2024-01-20,Strength Training,Knee Ability Zero,Step Up,5,0,lbs\n" +
+            "2024-01-21,Strength Training,Back Ability Zero,Back Extension,5,0,lbs\n" +
+            "2024-01-22,Strength Training,Ankle Ability Zero,Calf Raise,5,0,lbs\n"
+
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG-export.csv")
+
+        XCTAssertEqual(preview.workoutSessions.count, 3)
+        XCTAssertEqual(preview.workoutSessions.map(\.programAssignment), [.kneeAbilityZero, .backAbilityZero, .ankleAbilityZero])
+        XCTAssertEqual(preview.workoutSessions.flatMap { $0.sets }.map(\.exerciseName), ["Step Up", "Back Extension", "Calf Raise"])
+        XCTAssertTrue(preview.issues.isEmpty)
+    }
+
     func testATGImportSupportsTimeOnlyRowsAndExplicitRounds() {
         let csv = "workout_type,exercise,date,repetitions,resistance,duration_minutes,superset,rounds,round,note\n" +
             "Mobility,Walk Backwards,2024-01-11,,,5,Tibialis + Calf,2,1,\n" +

@@ -214,6 +214,34 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
         XCTAssertEqual(WorkoutProgramPresentation.name(for: sessions[0], programs: reloadedPrograms), "Ankle Ability Zero")
     }
 
+    func testRepeatedATGImportCreatesAndPersistsAllExplicitPrograms() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let suiteName = "ImportCommitterTests.repeatedExplicitATG"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let repository = ProgramsRepository(defaults: defaults)
+        let csv = "Workout Date,Workout Category,Program Name,Exercise Name,Reps,Weight,Weight Unit\n" +
+            "2024-01-20,Strength Training,Knee Ability Zero,Step Up,5,0,lbs\n" +
+            "2024-01-21,Strength Training,Back Ability Zero,Back Extension,5,0,lbs\n" +
+            "2024-01-22,Strength Training,Ankle Ability Zero,Calf Raise,5,0,lbs\n"
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG-export.csv")
+
+        let first = try ImportCommitter.commit(preview, into: context, programsRepository: repository)
+        let second = try ImportCommitter.commit(preview, into: context, programsRepository: repository)
+        XCTAssertEqual(first.insertedWorkoutSessions, 3)
+        XCTAssertEqual(second.insertedWorkoutSessions, 0)
+        XCTAssertEqual(second.skippedWorkoutSessions, 3)
+
+        let programs = ProgramsRepository(defaults: defaults).load()
+        let sessions = try context.fetch(FetchDescriptor<WorkoutSession>()).sorted { $0.startedAt < $1.startedAt }
+        XCTAssertEqual(sessions.count, 3)
+        XCTAssertEqual(sessions.map { WorkoutProgramPresentation.name(for: $0, programs: programs) }, ["Knee Ability Zero", "Back Ability Zero", "Ankle Ability Zero"])
+        XCTAssertTrue(sessions.allSatisfy { $0.programAssignmentID != nil })
+    }
+
     func testIndividualAssignmentPersistsWithoutChangingImportData() throws {
         let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
