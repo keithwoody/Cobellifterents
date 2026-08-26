@@ -12,6 +12,8 @@ struct ProgramsView: View {
     @State private var showingInvalidProgram = false
     @State private var showingDeletionError = false
     @State private var deletionErrorMessage = ""
+    @State private var programPendingDeletion: Program?
+    @State private var showingProgramDeleteConfirmation = false
     @State private var showingClearHistoryConfirmation = false
     @State private var clearHistoryError: String?
     private let repository: ProgramsRepository
@@ -69,6 +71,15 @@ struct ProgramsView: View {
                             Button(activeSelection.id(for: kind) == program.id ? "Active" : "Set active") { setActive(program) }
                                 .buttonStyle(.bordered)
                                 .tint(activeSelection.id(for: kind) == program.id ? .green : .accentColor)
+                            if !program.isBuiltIn {
+                                Button(role: .destructive) {
+                                    programPendingDeletion = program
+                                    showingProgramDeleteConfirmation = true
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .accessibilityLabel("Delete \(program.name)")
+                            }
                         }
                     }
                 }
@@ -109,6 +120,19 @@ struct ProgramsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(deletionErrorMessage)
+        }
+        .confirmationDialog("Delete Program?", isPresented: $showingProgramDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete Program", role: .destructive) {
+                if let programPendingDeletion {
+                    _ = delete(programPendingDeletion)
+                }
+                programPendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) {
+                programPendingDeletion = nil
+            }
+        } message: {
+            Text("Workout history will be preserved and marked unassigned.")
         }
         .confirmationDialog("Clear all workout history?", isPresented: $showingClearHistoryConfirmation, titleVisibility: .visible) {
             Button("Clear Workout History", role: .destructive) {
