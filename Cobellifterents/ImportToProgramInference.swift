@@ -32,13 +32,17 @@ enum ATGProgramPlanner {
 
 /// Pure conversion of imported native sessions into an editable Program.
 enum ImportToProgramInference {
+    static func generatedSourceKey(for draft: WorkoutSessionDraft) -> String {
+        "\(draft.sourceKind.rawValue):\(draft.sourceFileName.lowercased())"
+    }
+
     static func infer(from drafts: [WorkoutSessionDraft], sourceKind: ImportSourceKind? = nil) -> InferredProgram? {
         guard !drafts.isEmpty else { return nil }
         let kind = sourceKind ?? drafts[0].sourceKind
         let isStrongLifts = kind == .strongLiftsCSV || drafts.contains { strongIdentity($0.templateName) != nil }
         let programKind: ProgramKind = isStrongLifts ? .strongLifts : .atg
         let name = displayName(fileName: drafts[0].sourceFileName, kind: kind, drafts: drafts)
-        let sourceKey = "\(kind.rawValue):\(drafts[0].sourceFileName.lowercased())"
+        let sourceKey = generatedSourceKey(for: drafts[0])
         var workouts: [ProgramWorkout] = []
         var inferredTrainingDays: [TrainingDay] = []
         if isStrongLifts {

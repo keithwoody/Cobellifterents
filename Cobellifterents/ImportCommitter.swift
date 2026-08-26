@@ -39,6 +39,10 @@ enum ImportCommitter {
         } else {
             generatedPrograms = []
         }
+        let generatedProgramIDs = Dictionary(uniqueKeysWithValues: generatedPrograms.compactMap { program -> (String, UUID)? in
+            guard let sourceKey = program.generatedSourceKey else { return nil }
+            return (sourceKey, program.id)
+        })
         let assignmentIDs = Dictionary(uniqueKeysWithValues: generatedPrograms.compactMap { program -> (ImportProgramAssignment, UUID)? in
             guard let sourceKey = program.generatedSourceKey,
                   let assignmentRawValue = sourceKey.split(separator: ":").dropFirst().first,
@@ -50,18 +54,26 @@ enum ImportCommitter {
             else { modelContext.insert(WorkoutImportMapper.importedRawRecord(from: rawDraft)); summary.insertedRawRecords += 1 }
         }
         for sessionDraft in preview.workoutSessions {
+            let generatedProgramID = generatedProgramIDs[ImportToProgramInference.generatedSourceKey(for: sessionDraft)]
+            let assignedProgramID = generatedProgramID ?? assignmentIDs[sessionDraft.programAssignment]
+            let assignedProgramName = generatedProgramID.flatMap { id in generatedPrograms.first { $0.id == id }?.name }
             if let existing = try workoutSession(sessionDraft.sourceRecordID, in: modelContext) {
                 summary.skippedWorkoutSessions += 1
                 // Re-running an import may be the first run after this repair. Fill
                 // only an absent generated assignment so a later manual choice wins.
                 if existing.programAssignmentID == nil,
-                   let programID = assignmentIDs[sessionDraft.programAssignment] {
-                    existing.programAssignmentID = programID
-                    existing.programAssignmentRawValue = sessionDraft.programAssignment.rawValue
-                    existing.programAssignmentEvidence = sessionDraft.programAssignmentEvidence
+                   let assignedProgramID {
+                    existing.programAssignmentID = assignedProgramID
+                    existing.programAssignmentRawValue = assignedProgramName ?? sessionDraft.programAssignment.rawValue
+                    existing.programAssignmentEvidence = assignedProgramName == nil ? sessionDraft.programAssignmentEvidence : "Generated from imported source"
                 }
             } else {
-                modelContext.insert(WorkoutImportMapper.importedSession(from: sessionDraft, programAssignmentID: assignmentIDs[sessionDraft.programAssignment]))
+                let session = WorkoutImportMapper.importedSession(from: sessionDraft, programAssignmentID: assignedProgramID)
+                if let assignedProgramName {
+                    session.programAssignmentRawValue = assignedProgramName
+                    session.programAssignmentEvidence = "Generated from imported source"
+                }
+                modelContext.insert(session)
                 summary.insertedWorkoutSessions += 1
             }
         }

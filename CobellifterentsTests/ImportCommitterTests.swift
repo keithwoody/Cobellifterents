@@ -35,6 +35,41 @@ Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Se
         XCTAssertEqual(sessions[0].sets.count, 5)
     }
 
+    func testStrongLiftsImportAssignsGeneratedProgramAndRepairsOnReimport() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let suiteName = "ImportCommitterTests.strongLiftsGeneratedAssignment"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let repository = ProgramsRepository(defaults: defaults)
+        let csv = """
+        Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Sets×Reps,Sets×Time,Top Set (Reps×LB),e1RM (LB),Reps,Volume (LB),Workout Volume (LB),Duration (hours),Start Time (h:mm),End Time (h:mm),Notes,Set 1 (Reps),Set 1 (LB),Set 2 (Reps),Set 2 (LB),Set 3 (Reps),Set 3 (LB),Set 4 (Reps),Set 4 (LB),Set 5 (Reps),Set 5 (LB)
+        2026/08/24,1,Workout A,StrongLifts 5x5,175,Squat,5×5,,5×100,120,25,2500,2500,0.5,10:02 AM,10:32 AM,,5,100,5,100,5,100,5,100,5,100
+        """
+        let preview = CSVWorkoutImporter.previewStrongLiftsCSV(csv, sourceFileName: "StrongLifts20260824.csv")
+        let generatedName = "Imported StrongLifts20260824"
+        let first = try ImportCommitter.commit(preview, into: context, programsRepository: repository)
+        let generated = try XCTUnwrap(repository.load().first { $0.name == generatedName })
+        var session = try XCTUnwrap(context.fetch(FetchDescriptor<WorkoutSession>()).first)
+        XCTAssertEqual(first.insertedWorkoutSessions, 1)
+        XCTAssertEqual(session.programAssignmentID, generated.id)
+        XCTAssertEqual(session.programAssignmentRawValue, generatedName)
+        XCTAssertEqual(WorkoutProgramPresentation.name(for: session, programs: repository.load()), generatedName)
+
+        session.programAssignmentID = nil
+        session.programAssignmentRawValue = nil
+        session.programAssignmentEvidence = nil
+        try context.save()
+        let second = try ImportCommitter.commit(preview, into: context, programsRepository: repository)
+        session = try XCTUnwrap(context.fetch(FetchDescriptor<WorkoutSession>()).first)
+        XCTAssertEqual(second.insertedWorkoutSessions, 0)
+        XCTAssertEqual(second.skippedWorkoutSessions, 1)
+        XCTAssertEqual(session.programAssignmentID, generated.id)
+        XCTAssertEqual(session.programAssignmentRawValue, generatedName)
+        XCTAssertEqual(session.importSourceRecordID, preview.workoutSessions[0].sourceRecordID)
+    }
+
     func testImportedSessionPreservesFirstSeenExerciseOrder() throws {
         let csv = """
 Date (yyyy/mm/dd),Workout,Workout Name,Program Name,Body Weight (LB),Exercise,Sets×Reps,Sets×Time,Top Set (Reps×LB),e1RM (LB),Reps,Volume (LB),Workout Volume (LB),Duration (hours),Start Time (h:mm),End Time (h:mm),Notes,Set 1 (Reps),Set 1 (LB),Set 2 (Reps),Set 2 (LB),Set 3 (Reps),Set 3 (LB),Set 4 (Reps),Set 4 (LB),Set 5 (Reps),Set 5 (LB)
