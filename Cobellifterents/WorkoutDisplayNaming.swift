@@ -26,8 +26,11 @@ enum WorkoutDisplayNaming {
     }
 
     static func displayName(for session: WorkoutSession) -> String {
-        displayName(
-            programName: session.importProgramAssignment?.displayName,
+        let assignedProgramName = session.programAssignmentID != nil
+            ? programName(for: session)
+            : session.importProgramAssignment?.displayName
+        return displayName(
+            programName: assignedProgramName,
             workoutName: session.templateName,
             templateID: session.templateID
         )
@@ -37,8 +40,18 @@ enum WorkoutDisplayNaming {
     /// fallbacks for older sessions that predate program assignment metadata.
     static func programName(for session: WorkoutSession) -> String {
         if let rawAssignment = session.programAssignmentRawValue,
-           let assignment = ImportProgramAssignment(rawValue: rawAssignment) {
+           let assignment = ImportProgramAssignment(rawValue: rawAssignment),
+           assignment != .unassignedAmbiguous {
             return assignment.displayName
+        }
+
+        // Manual assignment stores the selected Program name alongside its stable
+        // ID. It is intentionally not an ImportProgramAssignment raw value, and
+        // must win over the imported template/source name on every display path.
+        if session.programAssignmentID != nil,
+           let explicitName = session.programAssignmentRawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !explicitName.isEmpty {
+            return explicitName
         }
 
         if let templateID = session.templateID,

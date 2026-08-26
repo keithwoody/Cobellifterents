@@ -150,8 +150,8 @@ struct ContentView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 HStack {
-                                    if let assignment = session.programAssignmentRawValue, session.programAssignmentID != nil {
-                                        Text(assignment)
+                                    if session.programAssignmentID != nil {
+                                        Text(WorkoutDisplayNaming.programName(for: session))
                                             .font(.caption)
                                             .foregroundStyle(.purple)
                                     }
@@ -276,11 +276,6 @@ struct WorkoutHistoryDetailView: View {
                 LabeledContent("Program", value: WorkoutDisplayNaming.programName(for: session))
                 LabeledContent("Status", value: session.isComplete ? "Complete" : "In progress")
                 LabeledContent("Started", value: session.startedAt.formatted(date: .abbreviated, time: .shortened))
-                if let assignment = session.programAssignmentRawValue, session.programAssignmentID != nil {
-                    LabeledContent("Program", value: assignment)
-                } else if session.isImported {
-                    LabeledContent("Program", value: "Unassigned")
-                }
                 if let completedAt = session.completedAt {
                     LabeledContent("Finished", value: completedAt.formatted(date: .abbreviated, time: .shortened))
                 }

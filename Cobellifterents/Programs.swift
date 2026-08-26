@@ -537,7 +537,12 @@ final class ProgramsRepository {
         guard let sourceKey = program.generatedSourceKey else { return (programs, false) }
         if let index = programs.firstIndex(where: { $0.generatedSourceKey == sourceKey }) {
             let existingID = programs[index].id
-            programs[index] = Program(id: existingID, kind: program.kind, name: program.name, workouts: program.workouts, trainingDays: program.trainingDays, restDays: program.restDays, generatedSourceKey: sourceKey)
+            // Generated content can be refreshed on every import, but the name is
+            // user-owned once the Program has been created. Do not make an import
+            // idempotency pass silently undo an explicit rename.
+            let existingName = programs[index].name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = existingName.isEmpty ? program.name : programs[index].name
+            programs[index] = Program(id: existingID, kind: program.kind, name: name, workouts: program.workouts, trainingDays: program.trainingDays, restDays: program.restDays, generatedSourceKey: sourceKey)
             save(programs)
             return (programs, false)
         }

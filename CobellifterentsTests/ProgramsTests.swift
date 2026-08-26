@@ -33,7 +33,26 @@ final class ProgramsTests: XCTestCase {
         XCTAssertEqual(repository.load(), Program.defaults)
     }
 
-    func testRepositoryPersistsNewStrongLiftsExerciseAcrossSaveAndReload() {
+    func testGeneratedUpsertPreservesExplicitRenameAcrossReload() {
+        let suite = "ProgramsGeneratedRenameTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let repository = ProgramsRepository(defaults: defaults)
+        let sourceKey = "strongLiftsCSV:stronglifts.csv"
+        let generated = Program(kind: .strongLifts, name: "Imported StrongLifts2026-03-03", workouts: Program.strongLiftsDefault.workouts, generatedSourceKey: sourceKey)
+        _ = repository.upsertGenerated(generated)
+        var renamed = repository.load().first { $0.generatedSourceKey == sourceKey }!
+        renamed.name = "Quarantine 5x12"
+        repository.save([renamed])
+
+        let refreshed = Program(kind: .strongLifts, name: "Imported StrongLifts2026-03-03", workouts: Program.strongLiftsDefault.workouts, generatedSourceKey: sourceKey)
+        _ = repository.upsertGenerated(refreshed)
+
+        XCTAssertEqual(repository.load().first?.name, "Quarantine 5x12")
+        XCTAssertEqual(repository.load().first?.generatedSourceKey, sourceKey)
+    }
+
+    func testRepositoryPersistsNewStrongLiftsExerciseAcrossSaveAndReload() throws {
         let suite = "ProgramsEditorPersistenceTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
