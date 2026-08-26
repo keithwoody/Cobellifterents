@@ -1,6 +1,9 @@
 import SwiftUI
+import SwiftData
 
 struct ProgramsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \WorkoutSession.startedAt, order: .reverse) private var sessions: [WorkoutSession]
     @State private var programs: [Program]
     @State private var activeSelection: ActiveProgramSelection
     @State private var creating = false
@@ -45,7 +48,7 @@ struct ProgramsView: View {
                     ForEach(programs.filter { $0.kind == kind }) { program in
                         HStack {
                             NavigationLink {
-                                ProgramDetailView(program: program, onSave: save)
+                                ProgramDetailView(program: program, onSave: save, onDelete: delete)
                             } label: {
                                 VStack(alignment: .leading) {
                                     HStack(spacing: 6) {
@@ -99,6 +102,14 @@ struct ProgramsView: View {
         refreshConflict()
     }
 
+    private func delete(_ program: Program) {
+        guard !program.isBuiltIn else { return }
+        guard let updated = try? repository.delete(program, sessions: sessions, in: modelContext) else { return }
+        programs = updated
+        activeSelection = repository.loadActiveSelection(for: programs)
+        refreshConflict()
+    }
+
     private func setActive(_ program: Program) {
         guard activeSelection.id(for: program.kind) == program.id || program.isValid else {
             showingInvalidProgram = true
@@ -134,14 +145,18 @@ struct ProgramsView: View {
 }
 
 struct ProgramDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     let program: Program
     let onSave: (Program) -> Void
+    let onDelete: (Program) -> Void
     @State private var editing = false
+    @State private var showingDeleteConfirmation = false
     @State private var displayedProgram: Program
 
-    init(program: Program, onSave: @escaping (Program) -> Void) {
+    init(program: Program, onSave: @escaping (Program) -> Void, onDelete: @escaping (Program) -> Void) {
         self.program = program
         self.onSave = onSave
+        self.onDelete = onDelete
         _displayedProgram = State(initialValue: program)
     }
 
@@ -169,7 +184,23 @@ struct ProgramDetailView: View {
             if let error = displayedProgram.validationError { Text(validationMessage(error)).foregroundStyle(.red) }
         }
         .navigationTitle(displayedProgram.name)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Edit") { editing = true } } }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { Button("Edit") { editing = true } }
+            if !displayedProgram.isBuiltIn {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Delete", role: .destructive) { showingDeleteConfirmation = true }
+                }
+            }
+        }
+        .confirmationDialog("Delete Program?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete Program", role: .destructive) {
+                onDelete(displayedProgram)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("All workout history will be preserved and marked unassigned.")
+        }
         .sheet(isPresented: $editing) {
             ProgramEditorView(program: displayedProgram, onSave: { savedProgram in
                 displayedProgram = savedProgram

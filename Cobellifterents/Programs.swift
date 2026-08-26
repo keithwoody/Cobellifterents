@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 enum ProgramKind: String, Codable, CaseIterable, Identifiable {
     case strongLifts
@@ -112,6 +113,7 @@ struct Program: Codable, Equatable, Identifiable {
         }
     }
     var isValid: Bool { validationError == nil }
+    var isBuiltIn: Bool { id == Self.strongLiftsDefaultID || id == Self.atgDefaultID }
 
     static func new(kind: ProgramKind, name: String) -> Program {
         let source = kind == .strongLifts ? strongLiftsDefault : atgDefault
@@ -437,6 +439,10 @@ struct ActiveProgramsEnvelope: Codable, Equatable {
     var selection: ActiveProgramSelection
 }
 
+enum ProgramDeletionError: Equatable, Error {
+    case protectedProgram
+}
+
 final class ProgramsRepository {
     private let defaults: UserDefaults
     private let key = "programs.v1"
@@ -467,6 +473,31 @@ final class ProgramsRepository {
     func saveActiveSelection(_ selection: ActiveProgramSelection) {
         guard let data = try? JSONEncoder().encode(ActiveProgramsEnvelope(version: 1, selection: selection)) else { return }
         defaults.set(data, forKey: activeSelectionKey)
+    }
+
+    @discardableResult
+    func delete(_ program: Program, sessions: [WorkoutSession] = [], in context: ModelContext? = nil) throws -> [Program] {
+        guard !program.isBuiltIn else { throw ProgramDeletionError.protectedProgram }
+        let remaining = load().filter { $0.id != program.id }
+        let programs = remaining.isEmpty ? Program.defaults : remaining
+        save(programs)
+
+        for session in sessions where session.programAssignmentID == program.id {
+            session.programAssignmentID = nil
+            session.programAssignmentRawValue = nil
+            session.programAssignmentEvidence = nil
+        }
+        if let context { try context.save() }
+
+        var selection = loadActiveSelection()
+        if selection.id(for: program.kind) == program.id {
+            switch program.kind {
+            case .strongLifts: selection.strongLiftsID = nil
+            case .atg: selection.atgID = nil
+            }
+            saveActiveSelection(selection)
+        }
+        return programs
     }
 
     @discardableResult

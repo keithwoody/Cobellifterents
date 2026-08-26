@@ -371,5 +371,35 @@ final class ProgramsTests: XCTestCase {
         program.restDays = TrainingDay.allCases
         XCTAssertTrue(UpcomingSchedule.entries(for: program, limit: 3).isEmpty)
     }
+
+    func testDeletingCustomProgramClearsAssignmentsPreservesHistoryAndActiveSelection() throws {
+        let suite = "ProgramsDeletionTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let repository = ProgramsRepository(defaults: defaults)
+        let custom = Program.new(kind: .atg, name: "Imported Ankle Program")
+        repository.save([Program.atgDefault, custom])
+        repository.saveActiveSelection(ActiveProgramSelection(atgID: custom.id))
+        let session = WorkoutSession(templateID: .atgImported, templateName: "ATG Training")
+        session.programAssignmentID = custom.id
+        session.programAssignmentRawValue = custom.name
+        session.programAssignmentEvidence = "import"
+
+        let remaining = try repository.delete(custom, sessions: [session])
+
+        XCTAssertEqual(remaining, [Program.atgDefault])
+        XCTAssertEqual(repository.load(), [Program.atgDefault])
+        XCTAssertNil(session.programAssignmentID)
+        XCTAssertNil(session.programAssignmentRawValue)
+        XCTAssertNil(session.programAssignmentEvidence)
+        XCTAssertNil(repository.loadActiveSelection().atgID)
+    }
+
+    func testDeletingBuiltInProgramIsRejected() {
+        let repository = ProgramsRepository(defaults: UserDefaults(suiteName: "ProgramsProtectedTests.\(UUID().uuidString)" )!)
+        XCTAssertThrowsError(try repository.delete(Program.atgDefault)) { error in
+            XCTAssertEqual(error as? ProgramDeletionError, .protectedProgram)
+        }
+    }
 }
 
