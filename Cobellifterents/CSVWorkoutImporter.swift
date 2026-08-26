@@ -200,10 +200,21 @@ enum CSVWorkoutImporter {
     }
 
     private static func atgProgramValue(from row: [String: String]) -> String? {
-        for key in ["program", "program_name", "programName"] {
-            if let value = row[key]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty { return value }
+        // ATG exports have used both `Program` and `Program Name`, with
+        // differences in case, spacing, and underscore/camel-case spelling.
+        // Match only those explicit program fields; do not infer a program
+        // from workout type or exercise names.
+        for expectedKey in ["program", "programname"] {
+            if let entry = row.first(where: { normalizedHeader($0.key) == expectedKey }) {
+                let value = entry.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !value.isEmpty { return value }
+            }
         }
         return nil
+    }
+
+    private static func normalizedHeader(_ header: String) -> String {
+        header.lowercased().filter { $0.isLetter || $0.isNumber }
     }
 
     private static func atgProgramEvidence(from row: [String: String]) -> String? {

@@ -191,6 +191,30 @@ Strength Training,ATG Split Squat,2024-01-11,5,0,lbs,0,0,3x10 instead of 5x5
         XCTAssertEqual(preview.workoutSessions[2].programAssignmentEvidence, "Explicit ATG export field: Unknown Plan")
     }
 
+    func testATGProgramAssignmentSupportsNormalizedProgramNameHeaders() {
+        let csv = " workout type ,  PROGRAM NAME  ,exercise,date,repetitions\n" +
+            "Strength Training,Knee Ability Zero,Step Up,2024-01-20,5\n" +
+            "Strength Training,Back Ability Zero,Back Extension,2024-01-21,5\n" +
+            "Strength Training,Ankle Ability Zero,Calf Raise,2024-01-22,5\n" +
+            "Strength Training,Unknown Plan,Move,2024-01-23,5\n"
+
+        let preview = CSVWorkoutImporter.previewATGCSV(csv, sourceFileName: "ATG-export.csv")
+
+        XCTAssertEqual(
+            preview.workoutSessions.map(\.programAssignment),
+            [.kneeAbilityZero, .backAbilityZero, .ankleAbilityZero, .unassignedAmbiguous]
+        )
+        XCTAssertEqual(
+            preview.workoutSessions.map(\.programAssignmentEvidence),
+            [
+                "Explicit ATG export field: Knee Ability Zero",
+                "Explicit ATG export field: Back Ability Zero",
+                "Explicit ATG export field: Ankle Ability Zero",
+                "Explicit ATG export field: Unknown Plan"
+            ]
+        )
+    }
+
     func testATGImportSupportsTimeOnlyRowsAndExplicitRounds() {
         let csv = "workout_type,exercise,date,repetitions,resistance,duration_minutes,superset,rounds,round,note\n" +
             "Mobility,Walk Backwards,2024-01-11,,,5,Tibialis + Calf,2,1,\n" +
