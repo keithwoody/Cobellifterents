@@ -12,6 +12,8 @@ struct ProgramsView: View {
     @State private var showingInvalidProgram = false
     @State private var showingDeletionError = false
     @State private var deletionErrorMessage = ""
+    @State private var showingClearHistoryConfirmation = false
+    @State private var clearHistoryError: String?
     private let repository: ProgramsRepository
 
     init(repository: ProgramsRepository = ProgramsRepository()) {
@@ -77,6 +79,14 @@ struct ProgramsView: View {
                         .foregroundStyle(.orange)
                 }
             }
+            Section("Danger zone") {
+                Button("Clear Workout History", role: .destructive) {
+                    showingClearHistoryConfirmation = true
+                }
+                Text("Deletes all workouts, sets, and imported source records. Programs and settings are preserved.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .navigationTitle("Programs")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { creating = true } label: { Label("Create Program", systemImage: "plus") } } }
@@ -99,6 +109,19 @@ struct ProgramsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(deletionErrorMessage)
+        }
+        .confirmationDialog("Clear all workout history?", isPresented: $showingClearHistoryConfirmation, titleVisibility: .visible) {
+            Button("Clear Workout History", role: .destructive) {
+                clearWorkoutHistory()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This permanently deletes every workout session, all dependent sets, and all imported raw/provenance records. Programs, active Program selections, and other settings will remain.")
+        }
+        .alert("Could Not Clear Workout History", isPresented: clearHistoryErrorBinding) {
+            Button("OK", role: .cancel) { clearHistoryError = nil }
+        } message: {
+            Text(clearHistoryError ?? "The workout history was not changed.")
         }
     }
 
@@ -146,6 +169,21 @@ struct ProgramsView: View {
         activeSelection.strongLiftsID = nil
         repository.saveActiveSelection(activeSelection)
         refreshConflict()
+    }
+
+    private func clearWorkoutHistory() {
+        do {
+            try WorkoutHistoryClearer.clear(in: modelContext)
+        } catch {
+            clearHistoryError = error.localizedDescription
+        }
+    }
+
+    private var clearHistoryErrorBinding: Binding<Bool> {
+        Binding(
+            get: { clearHistoryError != nil },
+            set: { if !$0 { clearHistoryError = nil } }
+        )
     }
 
     private static func conflictDays(in programs: [Program], selection: ActiveProgramSelection) -> [TrainingDay] {

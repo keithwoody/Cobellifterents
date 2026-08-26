@@ -3,6 +3,65 @@ import XCTest
 @testable import Cobellifterents
 
 final class ImportCommitterTests: XCTestCase {
+    func testClearWorkoutHistoryDeletesSessionsSetsAndRawRecords() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let session = WorkoutSession(templateID: .atgImported, templateName: "Imported")
+        session.importSourceRecordID = "source-1"
+        session.sets = [WorkoutSetRecord(exerciseID: "pushup", exerciseName: "Pushup", setNumber: 1, targetReps: 10, weight: 0)]
+        context.insert(session)
+        context.insert(ImportedRawRecord(sourceKind: .atgCSV, sourceFileName: "ATG.csv", sourceRowNumber: 1, sourceRecordID: "source-1", rowJSON: "{}", occurredAt: nil))
+        try context.save()
+
+        try WorkoutHistoryClearer.clear(in: context)
+
+        XCTAssertTrue(try context.fetch(FetchDescriptor<WorkoutSession>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<WorkoutSetRecord>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<ImportedRawRecord>()).isEmpty)
+    }
+
+    func testClearWorkoutHistoryPreservesProgramsActiveSelectionAndSettings() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let suite = "ImportCommitterTests.clearPreservesConfig.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let programsRepository = ProgramsRepository(defaults: defaults)
+        let programs = programsRepository.load()
+        let selection = ActiveProgramSelection(strongLiftsID: programs[0].id, atgID: programs[1].id)
+        programsRepository.saveActiveSelection(selection)
+        let progressionRepository = ProgressionSettingsRepository(defaults: defaults)
+        var settings = progressionRepository.load()
+        settings[0].currentWeight = 135
+        progressionRepository.save(settings)
+        context.insert(WorkoutSession(templateID: .strongLiftsA, templateName: "Workout A"))
+        try context.save()
+
+        try WorkoutHistoryClearer.clear(in: context)
+
+        XCTAssertEqual(programsRepository.load(), programs)
+        XCTAssertEqual(programsRepository.loadActiveSelection(for: programs), selection)
+        XCTAssertEqual(progressionRepository.load()[0].currentWeight, 135)
+    }
+
+    func testClearWorkoutHistoryIsSafeWhenRepeatedAndCleanAfterNewContext() throws {
+        let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        context.insert(WorkoutSession(templateID: .strongLiftsA, templateName: "Workout A"))
+        try context.save()
+
+        try WorkoutHistoryClearer.clear(in: context)
+        try WorkoutHistoryClearer.clear(in: context)
+
+        let relaunchedContext = ModelContext(container)
+        XCTAssertTrue(try relaunchedContext.fetch(FetchDescriptor<WorkoutSession>()).isEmpty)
+        XCTAssertTrue(try relaunchedContext.fetch(FetchDescriptor<WorkoutSetRecord>()).isEmpty)
+        XCTAssertTrue(try relaunchedContext.fetch(FetchDescriptor<ImportedRawRecord>()).isEmpty)
+    }
+
     func testCommitInsertsRawRecordsAndNativeSessionsOnlyOnce() throws {
         let schema = Schema([WorkoutSession.self, WorkoutSetRecord.self, ImportedRawRecord.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)

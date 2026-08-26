@@ -260,3 +260,25 @@ extension WorkoutSession {
         )
     }
 }
+
+/// Deletes all workout history and import provenance without touching Programs
+/// or UserDefaults-backed application settings.
+enum WorkoutHistoryClearer {
+    static func clear(in modelContext: ModelContext) throws {
+        do {
+            let sessions = try modelContext.fetch(FetchDescriptor<WorkoutSession>())
+            let sets = try modelContext.fetch(FetchDescriptor<WorkoutSetRecord>())
+            let importedRecords = try modelContext.fetch(FetchDescriptor<ImportedRawRecord>())
+
+            // Explicitly delete sets as well as sessions so orphaned records
+            // from older stores are removed too.
+            for set in sets { modelContext.delete(set) }
+            for session in sessions { modelContext.delete(session) }
+            for record in importedRecords { modelContext.delete(record) }
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
+}

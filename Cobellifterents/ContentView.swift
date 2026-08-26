@@ -93,6 +93,9 @@ struct ContentView: View {
             refreshPrograms()
             activeSession = WorkoutSessionRecovery.resumableSession(from: sessions)
         }
+        .onChange(of: sessions.map(\.id)) { _, _ in
+            activeSession = WorkoutSessionRecovery.resumableSession(from: sessions)
+        }
     }
 
     private var startView: some View {
