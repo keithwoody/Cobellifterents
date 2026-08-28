@@ -556,6 +556,9 @@ final class ProgramsRepository {
             let existingName = programs[index].name.trimmingCharacters(in: .whitespacesAndNewlines)
             let name = existingName.isEmpty ? program.name : programs[index].name
             programs[index] = Program(id: existingID, kind: program.kind, name: name, workouts: program.workouts, trainingDays: program.trainingDays, restDays: program.restDays, generatedSourceKey: sourceKey)
+            // A generated import may be repeated after the user has renamed its
+            // Program. Preserve that explicit name while refreshing imported shape.
+            programs[index] = Program(id: existingID, kind: program.kind, name: programs[index].name, workouts: program.workouts, trainingDays: program.trainingDays, restDays: program.restDays, generatedSourceKey: sourceKey)
             save(programs)
             return (programs, false)
         }

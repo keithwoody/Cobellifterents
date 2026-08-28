@@ -29,8 +29,10 @@ enum ImportCommitter {
                 let upserted = programsRepository.upsertGenerated(program)
                 if let resolved = upserted.programs.first(where: { $0.generatedSourceKey == program.generatedSourceKey }) {
                     resolvedPrograms.append(resolved)
+                    results.append(ImportProgramCommitResult(name: resolved.name, status: upserted.inserted ? "Created" : "Updated", needsScheduleEditing: program.kind == .atg && !(3...5).contains(program.selectedTrainingDays.count)))
+                } else {
+                    results.append(ImportProgramCommitResult(name: program.name, status: upserted.inserted ? "Created" : "Updated", needsScheduleEditing: program.kind == .atg && !(3...5).contains(program.selectedTrainingDays.count)))
                 }
-                results.append(ImportProgramCommitResult(name: program.name, status: upserted.inserted ? "Created" : "Updated", needsScheduleEditing: program.kind == .atg && !(3...5).contains(program.selectedTrainingDays.count)))
             }
             generatedPrograms = resolvedPrograms
             if !results.isEmpty {

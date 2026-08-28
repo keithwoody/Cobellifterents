@@ -153,6 +153,9 @@ struct ProgramsView: View {
         guard let index = programs.firstIndex(where: { $0.id == program.id }) else { return }
         programs[index] = program
         repository.save(programs)
+        // Sessions retain a stable Program UUID plus a cached name for display.
+        // Keep that cache in sync at the same mutation boundary as the rename.
+        try? WorkoutProgramAssignment.propagateRename(program, to: sessions, in: modelContext)
         refreshConflict()
     }
 
