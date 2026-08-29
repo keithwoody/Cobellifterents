@@ -67,6 +67,26 @@ enum WorkoutProgramAssignment {
         return changed
     }
 
+    /// Updates cached assignment names for sessions attached to a renamed Program.
+    /// Stable IDs identify the affected sessions; provenance and assignment evidence remain unchanged.
+    @discardableResult
+    static func propagateRename(_ program: Program, to sessions: [WorkoutSession], in context: ModelContext) throws -> Int {
+        let renamedSessions = sessions.filter {
+            $0.programAssignmentID == program.id && $0.programAssignmentRawValue != program.name
+        }
+        guard !renamedSessions.isEmpty else { return 0 }
+        for session in renamedSessions {
+            session.programAssignmentRawValue = program.name
+        }
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
+        return renamedSessions.count
+    }
+
     static func program(for session: WorkoutSession, in programs: [Program]) -> Program? {
         guard let id = session.programAssignmentID else { return nil }
         return programs.first { $0.id == id }
